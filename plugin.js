@@ -1693,6 +1693,7 @@ var plugins = (() => {
     hideCollectionOptionMenus: false,
     hideWorkspaceSwitcher: false,
     hideCollapsedChevron: false,
+    hideSidebarScrollbar: false,
     // Renaming — custom heading labels ('' = leave Thymer's default)
     renameCollections: "",
     renameTags: "",
@@ -1728,6 +1729,7 @@ var plugins = (() => {
       "hideCollectionOptionMenus",
       "hideWorkspaceSwitcher",
       "hideCollapsedChevron",
+      "hideSidebarScrollbar",
       "emptySidebarClick",
       "pinTagsToBottom",
       "fixPanelAnimation"
@@ -1933,6 +1935,7 @@ var plugins = (() => {
         // Intentionally NO permanent `.sidebar { z-index }` — that buried menus.
       );
     }
+    emitHideSidebarScrollbarRules(lines, scope, options);
     lines.push(
       ...OVERLAY_STACK_SELECTORS.map((sel, i) => `${scope} ${sel}${i < OVERLAY_STACK_SELECTORS.length - 1 ? "," : " {"}`),
       `z-index: ${OVERLAY_STACK_Z_INDEX} !important;`,
@@ -1987,6 +1990,58 @@ var plugins = (() => {
     return lines.join("\n");
   }
   __name(buildTweaksCSS, "buildTweaksCSS");
+  function emitHideSidebarScrollbarRules(lines, scope, options) {
+    if (!options.hideSidebarScrollbar) return;
+    const sidebar = `${scope} .sidebar`;
+    const pinnedScroll = `${sidebar} .${COLLECTIONS_SCROLL_CLASS}`;
+    lines.push(
+      `${pinnedScroll} {`,
+      `scrollbar-width: none !important;`,
+      `-ms-overflow-style: none !important;`,
+      `}`,
+      `${pinnedScroll}::-webkit-scrollbar {`,
+      `display: none !important;`,
+      `width: 0 !important;`,
+      `height: 0 !important;`,
+      `}`,
+      // Nested Thymer thumb only — never `.vscrollbar` (may wrap collection rows).
+      `${pinnedScroll} .scrollbar-thumb {`,
+      `opacity: 0 !important;`,
+      `visibility: hidden !important;`,
+      `pointer-events: none !important;`,
+      `}`
+    );
+    const defaultScroll = `${sidebar} .scrollbar`;
+    lines.push(
+      `${defaultScroll} {`,
+      `scrollbar-width: none !important;`,
+      `-ms-overflow-style: none !important;`,
+      `}`,
+      `${defaultScroll}::-webkit-scrollbar {`,
+      `display: none !important;`,
+      `width: 0 !important;`,
+      `height: 0 !important;`,
+      `}`,
+      `${defaultScroll} .scrollbar-thumb {`,
+      `opacity: 0 !important;`,
+      `visibility: hidden !important;`,
+      `pointer-events: none !important;`,
+      `}`
+    );
+    const collapsedSidebar = [
+      `${sidebar}.sidebar-collapsed`,
+      `${sidebar} .sidebar-collapsed`
+    ].join(",\n");
+    lines.push(
+      `${collapsedSidebar} .vscrollbar,`,
+      `${collapsedSidebar} .scrollbar-thumb {`,
+      `opacity: 0 !important;`,
+      `visibility: hidden !important;`,
+      `pointer-events: none !important;`,
+      `}`
+    );
+  }
+  __name(emitHideSidebarScrollbarRules, "emitHideSidebarScrollbarRules");
   function emitCollectionsHeaderHide(lines, scope) {
     lines.push(
       `${scope} .sidebar--icons [data-guid="${COLLECTIONS_HEADER_GUID}"],`,
@@ -2441,7 +2496,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.1";
+  var PLUGIN_VERSION = "1.0.4";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
@@ -3379,6 +3434,18 @@ var plugins = (() => {
           checked: !!this._options.hideTrash,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideTrash",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
+          name: "hideSidebarScrollbar",
+          label: "Hide sidebar scrollbar",
+          desc: "Hides the sidebar scrollbar in expanded and collapsed states. Wheel and trackpad scrolling still work.",
+          checked: !!this._options.hideSidebarScrollbar,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "hideSidebarScrollbar",
             /** @type {HTMLInputElement} */
             e.target.checked
           ), "onChange")
