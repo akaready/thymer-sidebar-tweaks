@@ -1,0 +1,2 @@
+/* Sidebar Tweaks injects sidebar CSS at runtime from plugin.js (buildTweaksCSS).
+   This file exists so Plugins Manager can resolve plugin.css without 404 probes. */

@@ -1,0 +1,19 @@
+{
+	"ver": 1,
+	"version": "1.0.0",
+	"name": "Sidebar Tweaks",
+	"icon": "layout-dashboard",
+	"description": "Sidebar visibility, behavior, and layout options for Thymer's collections sidebar.",
+	"instructions": "These options reshape sidebar visibility and layout. Changes apply live; save when you are happy with the result.",
+	"author": "@akaready",
+	"homepage": "https://akaready.com",
+	"repository": "https://github.com/akaready/thymer-sidebar-tweaks",
+	"coffee": "https://buymeacoffee.com/akaready",
+	"__source_repo": "https://github.com/akaready/thymer-sidebar-tweaks",
+	"__source_files": {
+		"branch": "main",
+		"json": "plugin.json",
+		"js": "plugin.js",
+		"css": "plugin.css"
+	}
+}
