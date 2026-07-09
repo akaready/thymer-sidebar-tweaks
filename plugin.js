@@ -1935,7 +1935,8 @@ var plugins = (() => {
         // Intentionally NO permanent `.sidebar { z-index }` — that buried menus.
       );
     }
-    emitHideSidebarScrollbarRules(lines, scope, options);
+    emitSuppressNativeSidebarScrollbars(lines, scope);
+    emitHideStyledSidebarScrollbarRules(lines, scope, options);
     lines.push(
       ...OVERLAY_STACK_SELECTORS.map((sel, i) => `${scope} ${sel}${i < OVERLAY_STACK_SELECTORS.length - 1 ? "," : " {"}`),
       `z-index: ${OVERLAY_STACK_Z_INDEX} !important;`,
@@ -1990,41 +1991,50 @@ var plugins = (() => {
     return lines.join("\n");
   }
   __name(buildTweaksCSS, "buildTweaksCSS");
-  function emitHideSidebarScrollbarRules(lines, scope, options) {
-    if (!options.hideSidebarScrollbar) return;
+  function emitSuppressNativeSidebarScrollbars(lines, scope) {
     const sidebar = `${scope} .sidebar`;
-    const parked = `${scope}.${PIN_TAGS_CLASS}.${PIN_TAGS_PARKED_CLASS}`;
-    const pinnedScroll = `${parked} ${sidebar}:not(.sidebar-collapsed) .${COLLECTIONS_SCROLL_CLASS}`;
+    const nativeScroll = [
+      `${sidebar} .${COLLECTIONS_SCROLL_CLASS}`,
+      // Viewport wrapper — suppress native pseudo only, not the element itself.
+      `${sidebar} .scrollbar`
+    ].join(",\n");
     lines.push(
-      `${pinnedScroll} {`,
+      `${nativeScroll} {`,
       `scrollbar-width: none !important;`,
       `-ms-overflow-style: none !important;`,
       `}`,
-      `${pinnedScroll}::-webkit-scrollbar {`,
+      `${nativeScroll}::-webkit-scrollbar {`,
       `display: none !important;`,
       `width: 0 !important;`,
       `height: 0 !important;`,
-      `}`
-    );
-    const defaultScroll = `${scope}:not(.${PIN_TAGS_PARKED_CLASS}) ${sidebar}:not(.sidebar-collapsed) .scrollbar`;
-    lines.push(
-      `${defaultScroll} {`,
-      `scrollbar-width: none !important;`,
-      `-ms-overflow-style: none !important;`,
-      `}`,
-      `${defaultScroll}::-webkit-scrollbar {`,
-      `display: none !important;`,
-      `width: 0 !important;`,
-      `height: 0 !important;`,
-      `}`
-    );
-    lines.push(
-      `${sidebar}.sidebar-collapsed .vscrollbar {`,
-      `pointer-events: none !important;`,
       `}`
     );
   }
-  __name(emitHideSidebarScrollbarRules, "emitHideSidebarScrollbarRules");
+  __name(emitSuppressNativeSidebarScrollbars, "emitSuppressNativeSidebarScrollbars");
+  function emitHideStyledSidebarScrollbarRules(lines, scope, options) {
+    if (!options.hideSidebarScrollbar) return;
+    const sidebar = `${scope} .sidebar`;
+    const styledRail = [
+      `${sidebar} .vscrollbar`,
+      `${sidebar} .vscrollbar .scrollbar`,
+      `${sidebar} .vscrollbar .scrollbar-thumb`
+    ].join(",\n");
+    lines.push(
+      `${styledRail} {`,
+      `opacity: 0 !important;`,
+      `visibility: hidden !important;`,
+      `pointer-events: none !important;`,
+      `}`,
+      // Collapsed rail: styled overlay sits on icons — also zero-width so it
+      // cannot paint a second track beside the (already suppressed) native bar.
+      `${sidebar}.sidebar-collapsed .vscrollbar {`,
+      `width: 0 !important;`,
+      `min-width: 0 !important;`,
+      `overflow: hidden !important;`,
+      `}`
+    );
+  }
+  __name(emitHideStyledSidebarScrollbarRules, "emitHideStyledSidebarScrollbarRules");
   function emitCollectionsHeaderHide(lines, scope) {
     lines.push(
       `${scope} .sidebar--icons [data-guid="${COLLECTIONS_HEADER_GUID}"],`,
@@ -2479,7 +2489,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.6";
+  var PLUGIN_VERSION = "1.0.7";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
@@ -3425,7 +3435,7 @@ var plugins = (() => {
           type: "checkbox",
           name: "hideSidebarScrollbar",
           label: "Hide sidebar scrollbar",
-          desc: "Hides the sidebar scrollbar in expanded and collapsed states. Wheel and trackpad scrolling still work.",
+          desc: "Hides Thymer's styled sidebar scrollbar. Wheel and trackpad scrolling still work. (Native browser scrollbars are always suppressed \u2014 pin-tags would otherwise show both.)",
           checked: !!this._options.hideSidebarScrollbar,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideSidebarScrollbar",
