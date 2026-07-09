@@ -1935,7 +1935,6 @@ var plugins = (() => {
         // Intentionally NO permanent `.sidebar { z-index }` — that buried menus.
       );
     }
-    emitSuppressNativeSidebarScrollbars(lines, scope);
     emitHideStyledSidebarScrollbarRules(lines, scope, options);
     lines.push(
       ...OVERLAY_STACK_SELECTORS.map((sel, i) => `${scope} ${sel}${i < OVERLAY_STACK_SELECTORS.length - 1 ? "," : " {"}`),
@@ -1991,46 +1990,19 @@ var plugins = (() => {
     return lines.join("\n");
   }
   __name(buildTweaksCSS, "buildTweaksCSS");
-  function emitSuppressNativeSidebarScrollbars(lines, scope) {
-    const sidebar = `${scope} .sidebar`;
-    const nativeScroll = [
-      `${sidebar} .${COLLECTIONS_SCROLL_CLASS}`,
-      // Viewport wrapper — suppress native pseudo only, not the element itself.
-      `${sidebar} .scrollbar`
-    ].join(",\n");
-    lines.push(
-      `${nativeScroll} {`,
-      `scrollbar-width: none !important;`,
-      `-ms-overflow-style: none !important;`,
-      `}`,
-      `${nativeScroll}::-webkit-scrollbar {`,
-      `display: none !important;`,
-      `width: 0 !important;`,
-      `height: 0 !important;`,
-      `}`
-    );
-  }
-  __name(emitSuppressNativeSidebarScrollbars, "emitSuppressNativeSidebarScrollbars");
   function emitHideStyledSidebarScrollbarRules(lines, scope, options) {
     if (!options.hideSidebarScrollbar) return;
-    const sidebar = `${scope} .sidebar`;
-    const styledRail = [
-      `${sidebar} .vscrollbar`,
-      `${sidebar} .vscrollbar .scrollbar`,
-      `${sidebar} .vscrollbar .scrollbar-thumb`
+    const styledRail = `${scope} .sidebar .vscrollbar.scrollbar`;
+    const styledThumb = [
+      `${scope} .sidebar .vscrollbar .vscrollbar-thumb`,
+      `${scope} .sidebar .vscrollbar .scrollbar-thumb`
     ].join(",\n");
     lines.push(
-      `${styledRail} {`,
+      `${styledRail},`,
+      `${styledThumb} {`,
       `opacity: 0 !important;`,
       `visibility: hidden !important;`,
       `pointer-events: none !important;`,
-      `}`,
-      // Collapsed rail: styled overlay sits on icons — also zero-width so it
-      // cannot paint a second track beside the (already suppressed) native bar.
-      `${sidebar}.sidebar-collapsed .vscrollbar {`,
-      `width: 0 !important;`,
-      `min-width: 0 !important;`,
-      `overflow: hidden !important;`,
       `}`
     );
   }
@@ -2079,6 +2051,15 @@ var plugins = (() => {
       `min-height: 0 !important;`,
       `overflow-y: auto !important;`,
       `overflow-x: hidden !important;`,
+      // Pin-tags overflow-y:auto introduces a native browser bar beside Thymer's
+      // styled `.vscrollbar.scrollbar` overlay — always suppress the native one.
+      `scrollbar-width: none !important;`,
+      `-ms-overflow-style: none !important;`,
+      `}`,
+      `${rail} .sidebar--icons .${COLLECTIONS_SCROLL_CLASS}::-webkit-scrollbar {`,
+      `display: none !important;`,
+      `width: 0 !important;`,
+      `height: 0 !important;`,
       `}`,
       `${bottomStack} {`,
       `display: flex !important;`,
@@ -2489,7 +2470,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.7";
+  var PLUGIN_VERSION = "1.0.8";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
@@ -3435,7 +3416,7 @@ var plugins = (() => {
           type: "checkbox",
           name: "hideSidebarScrollbar",
           label: "Hide sidebar scrollbar",
-          desc: "Hides Thymer's styled sidebar scrollbar. Wheel and trackpad scrolling still work. (Native browser scrollbars are always suppressed \u2014 pin-tags would otherwise show both.)",
+          desc: "Hides Thymer's styled sidebar scrollbar (.vscrollbar.scrollbar overlay). Wheel/trackpad scroll still works. With pin-tags, the native browser bar is always suppressed so only the styled rail shows when this is off.",
           checked: !!this._options.hideSidebarScrollbar,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideSidebarScrollbar",
