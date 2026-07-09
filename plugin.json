@@ -1,6 +1,6 @@
 {
 	"ver": 1,
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"name": "Sidebar Tweaks",
 	"icon": "layout-dashboard",
 	"description": "Sidebar visibility, behavior, and layout options for Thymer's collections sidebar.",
