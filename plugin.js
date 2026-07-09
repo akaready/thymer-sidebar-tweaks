@@ -1993,7 +1993,8 @@ var plugins = (() => {
   function emitHideSidebarScrollbarRules(lines, scope, options) {
     if (!options.hideSidebarScrollbar) return;
     const sidebar = `${scope} .sidebar`;
-    const pinnedScroll = `${sidebar} .${COLLECTIONS_SCROLL_CLASS}`;
+    const parked = `${scope}.${PIN_TAGS_CLASS}.${PIN_TAGS_PARKED_CLASS}`;
+    const pinnedScroll = `${parked} ${sidebar}:not(.sidebar-collapsed) .${COLLECTIONS_SCROLL_CLASS}`;
     lines.push(
       `${pinnedScroll} {`,
       `scrollbar-width: none !important;`,
@@ -2003,15 +2004,9 @@ var plugins = (() => {
       `display: none !important;`,
       `width: 0 !important;`,
       `height: 0 !important;`,
-      `}`,
-      // Nested Thymer thumb only — never `.vscrollbar` (may wrap collection rows).
-      `${pinnedScroll} .scrollbar-thumb {`,
-      `opacity: 0 !important;`,
-      `visibility: hidden !important;`,
-      `pointer-events: none !important;`,
       `}`
     );
-    const defaultScroll = `${sidebar} .scrollbar`;
+    const defaultScroll = `${scope}:not(.${PIN_TAGS_PARKED_CLASS}) ${sidebar}:not(.sidebar-collapsed) .scrollbar`;
     lines.push(
       `${defaultScroll} {`,
       `scrollbar-width: none !important;`,
@@ -2021,22 +2016,10 @@ var plugins = (() => {
       `display: none !important;`,
       `width: 0 !important;`,
       `height: 0 !important;`,
-      `}`,
-      `${defaultScroll} .scrollbar-thumb {`,
-      `opacity: 0 !important;`,
-      `visibility: hidden !important;`,
-      `pointer-events: none !important;`,
       `}`
     );
-    const collapsedSidebar = [
-      `${sidebar}.sidebar-collapsed`,
-      `${sidebar} .sidebar-collapsed`
-    ].join(",\n");
     lines.push(
-      `${collapsedSidebar} .vscrollbar,`,
-      `${collapsedSidebar} .scrollbar-thumb {`,
-      `opacity: 0 !important;`,
-      `visibility: hidden !important;`,
+      `${sidebar}.sidebar-collapsed .vscrollbar {`,
       `pointer-events: none !important;`,
       `}`
     );
@@ -2496,7 +2479,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.4";
+  var PLUGIN_VERSION = "1.0.6";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
