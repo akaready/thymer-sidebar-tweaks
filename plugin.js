@@ -1660,6 +1660,7 @@ var plugins = (() => {
   // options.js
   var BODY_SCOPE_CLASS = "plg-sidebar-tweaks";
   var TAG_ROW_ATTR = "data-plg-st-tag";
+  var SEPARATOR_ROW_ATTR = "data-plg-sidebar-seperator";
   var TWEAKS_STYLE_ID = "plg-sidebar-tweaks-runtime-style";
   var TAGS_HEADER_GUID = "id-hdr-tags";
   var COLLECTIONS_HEADER_GUID = "id-hdr-collections";
@@ -1977,14 +1978,7 @@ var plugins = (() => {
       const w = tunedValue(options.expandedSidebarWidth);
       lines.push(`${scope} { --sidebar-width: ${w}px !important; }`);
     }
-    if (tunedEnabled(options.collectionRowGap)) {
-      const gap = tunedValue(options.collectionRowGap);
-      lines.push(
-        `${scope} .sidebar--icons .sidebar-item-collection {`,
-        `margin-bottom: ${gap}px !important;`,
-        `}`
-      );
-    }
+    emitCollectionRowGapRules(lines, scope, options);
     emitCollectionRowHeightRules(lines, scope, options);
     if (options.hideCollectionOptionMenus) {
       lines.push(`${scope} .sidebar--icons .sidebar-item-hover-only.is-option-menu { display: none !important; }`);
@@ -2047,10 +2041,25 @@ var plugins = (() => {
     );
   }
   __name(emitPinTagsRules, "emitPinTagsRules");
+  function emitCollectionRowGapRules(lines, scope, options) {
+    if (!tunedEnabled(options.collectionRowGap)) return;
+    const gap = tunedValue(options.collectionRowGap);
+    const collRow = `.sidebar-item-collection:not([${SEPARATOR_ROW_ATTR}="1"])`;
+    const icons = `${scope} .sidebar--icons`;
+    lines.push(
+      `${icons} .sidebar-item:has(+ ${collRow}) {`,
+      `margin-bottom: ${gap}px !important;`,
+      `}`,
+      `${icons} ${collRow} + ${collRow} {`,
+      `margin-top: ${gap}px !important;`,
+      `}`
+    );
+  }
+  __name(emitCollectionRowGapRules, "emitCollectionRowGapRules");
   function emitCollectionRowHeightRules(lines, scope, options) {
     if (!tunedEnabled(options.collectionRowHeight)) return;
     const h2 = Math.max(20, tunedValue(options.collectionRowHeight));
-    const rowSel = `${scope} .sidebar:not(.sidebar-collapsed) .sidebar--icons .sidebar-item-collection`;
+    const rowSel = `${scope} .sidebar:not(.sidebar-collapsed) .sidebar--icons .sidebar-item-collection:not([${SEPARATOR_ROW_ATTR}="1"])`;
     const actionsSel = `${rowSel} > div[style*="flex"]`;
     lines.push(
       `${rowSel} {`,
@@ -2432,7 +2441,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.0";
+  var PLUGIN_VERSION = "1.0.1";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
