@@ -278,6 +278,7 @@ var plugins = (() => {
   line-height: 1;
   color: var(--tps-text-muted);
   transform: translateY(2px);
+  margin-right: var(--tps-space-1, 4px);
 }
 
 .tps-plugin-header-iconify {
@@ -1970,10 +1971,20 @@ var plugins = (() => {
         // The overlay vertical scrollbar (.vscrollbar) spans the narrow collapsed
         // body ON TOP of the icon column (z-index:2, pointer-events:auto), so a
         // click at an icon's center hits the scrollbar, not the icon — the icons
-        // feel dead. Let clicks fall through to the rows underneath. Wheel scroll
-        // is unaffected; a collapsed rail rarely needs scrollbar-drag.
+        // feel dead. Let clicks fall through to the rows underneath. BUT: Thymer
+        // forces `.sidebar-collapsed .sidebar--icons { overflow-y:hidden }` and
+        // relies on the rail's own wheel handler for collapsed scrolling, so an
+        // inert rail kills wheel scroll unless native scrolling is restored —
+        // overflow-y:auto with the native bar suppressed.
         `${scope} .sidebar.sidebar-collapsed .vscrollbar {`,
         `pointer-events: none !important;`,
+        `}`,
+        `${scope} .sidebar.sidebar-collapsed .sidebar--icons {`,
+        `overflow-y: auto !important;`,
+        `scrollbar-width: none !important;`,
+        `}`,
+        `${scope} .sidebar.sidebar-collapsed .sidebar--icons::-webkit-scrollbar {`,
+        `display: none !important;`,
         `}`
       );
     }
@@ -1992,17 +2003,37 @@ var plugins = (() => {
   __name(buildTweaksCSS, "buildTweaksCSS");
   function emitHideStyledSidebarScrollbarRules(lines, scope, options) {
     if (!options.hideSidebarScrollbar) return;
-    const styledRail = `${scope} .sidebar .vscrollbar.scrollbar`;
-    const styledThumb = [
-      `${scope} .sidebar .vscrollbar .vscrollbar-thumb`,
-      `${scope} .sidebar .vscrollbar .scrollbar-thumb`
-    ].join(",\n");
     lines.push(
-      `${styledRail},`,
-      `${styledThumb} {`,
+      // Invisible but hit-testable: opacity never breaks the rail's wheel handler.
+      // No visibility:hidden / display:none anywhere — those remove hit-testing.
+      `${scope} .sidebar .vscrollbar.scrollbar,`,
+      `${scope} .sidebar .vscrollbar .vscrollbar-thumb,`,
+      `${scope} .sidebar .vscrollbar .scrollbar-thumb {`,
       `opacity: 0 !important;`,
-      `visibility: hidden !important;`,
+      `}`,
+      // Expanded: `.sidebar--icons` scrolls natively (inline overflow-y:scroll), so
+      // the rail is redundant — make it inert so the invisible track can't steal
+      // clicks/jump-scroll in the reclaimed gutter.
+      `${scope} .sidebar:not(.sidebar-collapsed) .vscrollbar {`,
       `pointer-events: none !important;`,
+      `}`,
+      // Collapsed: restore native wheel scroll (Thymer forces overflow-y:hidden and
+      // leans on the rail's wheel handler), keep the native bar invisible, then the
+      // rail can be inert here too.
+      `${scope} .sidebar.sidebar-collapsed .sidebar--icons {`,
+      `overflow-y: auto !important;`,
+      `scrollbar-width: none !important;`,
+      `}`,
+      `${scope} .sidebar.sidebar-collapsed .sidebar--icons::-webkit-scrollbar {`,
+      `display: none !important;`,
+      `}`,
+      `${scope} .sidebar.sidebar-collapsed .vscrollbar {`,
+      `pointer-events: none !important;`,
+      `}`,
+      // Reclaim the rail gutter: Thymer's expanded `.sidebar--icons` has
+      // padding: 0 20px 10px 10px — drop right to 10px, symmetric with the left.
+      `${scope} .sidebar:not(.sidebar-collapsed) .sidebar--icons {`,
+      `padding-right: 10px !important;`,
       `}`
     );
   }
@@ -2026,46 +2057,29 @@ var plugins = (() => {
     const rail = `${parked} .sidebar:not(.sidebar-collapsed)`;
     const bottomStack = `${rail} .sidebar--icons .${BOTTOM_STACK_CLASS}`;
     lines.push(
-      `${rail} {`,
-      `display: flex !important;`,
-      `flex-direction: column !important;`,
-      `min-height: 0 !important;`,
-      `height: 100% !important;`,
-      `}`,
-      `${rail} .sidebar--body {`,
-      `flex: 1 1 auto !important;`,
-      `min-height: 0 !important;`,
-      `display: flex !important;`,
-      `flex-direction: column !important;`,
-      `overflow: hidden !important;`,
-      `}`,
+      // One-scroller layout: `.sidebar--icons` keeps its vanilla inline
+      // overflow-y:scroll + scrollbar-width:none, so Thymer's styled rail keeps
+      // tracking it and no second native scroll container ever exists. The stack
+      // pins via position:sticky; flex column + margin-top:auto pushes it to the
+      // bottom edge when content is shorter than the sidebar.
       `${rail} .sidebar--icons {`,
-      `flex: 1 1 auto !important;`,
-      `min-height: 0 !important;`,
       `display: flex !important;`,
       `flex-direction: column !important;`,
-      `overflow: hidden !important;`,
-      `}`,
-      `${rail} .sidebar--icons .${COLLECTIONS_SCROLL_CLASS} {`,
-      `flex: 1 1 auto !important;`,
-      `min-height: 0 !important;`,
-      `overflow-y: auto !important;`,
-      `overflow-x: hidden !important;`,
-      // Pin-tags overflow-y:auto introduces a native browser bar beside Thymer's
-      // styled `.vscrollbar.scrollbar` overlay — always suppress the native one.
-      `scrollbar-width: none !important;`,
-      `-ms-overflow-style: none !important;`,
-      `}`,
-      `${rail} .sidebar--icons .${COLLECTIONS_SCROLL_CLASS}::-webkit-scrollbar {`,
-      `display: none !important;`,
-      `width: 0 !important;`,
-      `height: 0 !important;`,
+      // The scroller's own bottom padding would sit BELOW the sticky stack and
+      // leak scrolling content through that slot — move the 10px into the stack.
+      `padding-bottom: 0 !important;`,
       `}`,
       `${bottomStack} {`,
-      `display: flex !important;`,
-      `flex-direction: column !important;`,
-      `flex-shrink: 0 !important;`,
-      `margin-top: auto !important;`,
+      `display: flex;`,
+      `flex-direction: column;`,
+      `flex-shrink: 0;`,
+      `margin-top: auto;`,
+      `position: sticky;`,
+      `bottom: 0;`,
+      `z-index: 1;`,
+      `padding-bottom: 10px;`,
+      // Opaque over rows scrolling beneath it; tracks the active theme.
+      `background: var(--side-bg-color, inherit);`,
       `}`
     );
   }
@@ -2365,6 +2379,7 @@ var plugins = (() => {
   }
   __name(syncPinTagsLayout, "syncPinTagsLayout");
   function parkPinTagsLayout(icons, tagsHdr) {
+    unwrapCollectionsScroll(icons);
     let stack = icons.querySelector(`:scope > .${BOTTOM_STACK_CLASS}`);
     if (!(stack instanceof HTMLElement)) {
       stack = document.createElement("div");
@@ -2372,40 +2387,14 @@ var plugins = (() => {
       icons.insertBefore(stack, tagsHdr);
     }
     if (tagsHdr.parentElement !== stack) stack.appendChild(tagsHdr);
-    let scroll = icons.querySelector(`:scope > .${COLLECTIONS_SCROLL_CLASS}`);
-    if (!(scroll instanceof HTMLElement)) {
-      scroll = document.createElement("div");
-      scroll.className = COLLECTIONS_SCROLL_CLASS;
-      icons.insertBefore(scroll, stack);
-    }
-    if (scroll.nextElementSibling !== stack) {
-      icons.insertBefore(scroll, stack);
-    }
     for (const child of [...icons.children]) {
-      if (child === scroll || child === stack) continue;
+      if (child === stack) continue;
       const guid = child.getAttribute?.("data-guid");
-      if (guid === "id-hdr-trash") {
+      const belongsInStack = guid === "id-hdr-trash" || child.classList.contains("sidebar-item-collection") && guid?.startsWith("trashed-") || child.getAttribute(TAG_ROW_ATTR) === "1" || child.classList.contains("scal-root") || child.classList.contains("sidebar-widget-container");
+      if (belongsInStack) {
         stack.appendChild(child);
-        continue;
-      }
-      if (child.classList.contains("sidebar-item-collection")) {
-        if (guid?.startsWith("trashed-")) {
-          stack.appendChild(child);
-        } else {
-          scroll.appendChild(child);
-        }
-        continue;
-      }
-      if (guid === COLLECTIONS_HEADER_GUID || child.classList.contains("sidebar-item-collsheading")) {
-        scroll.appendChild(child);
-        continue;
-      }
-      if (child.getAttribute(TAG_ROW_ATTR) === "1" || child.classList.contains("scal-root") || child.classList.contains("sidebar-widget-container")) {
-        stack.appendChild(child);
-        continue;
-      }
-      if (child.compareDocumentPosition(stack) & Node.DOCUMENT_POSITION_FOLLOWING) {
-        scroll.appendChild(child);
+      } else if (child.compareDocumentPosition(stack) & Node.DOCUMENT_POSITION_PRECEDING) {
+        icons.insertBefore(child, stack);
       }
     }
     if (stack.parentElement === icons && stack !== icons.lastElementChild) {
@@ -2470,7 +2459,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.8";
+  var PLUGIN_VERSION = "1.0.13";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
@@ -3416,7 +3405,7 @@ var plugins = (() => {
           type: "checkbox",
           name: "hideSidebarScrollbar",
           label: "Hide sidebar scrollbar",
-          desc: "Hides Thymer's styled sidebar scrollbar (.vscrollbar.scrollbar overlay). Wheel/trackpad scroll still works. With pin-tags, the native browser bar is always suppressed so only the styled rail shows when this is off.",
+          desc: "Hides Thymer's styled sidebar scrollbar and reclaims its gutter so collection names stretch closer to the sidebar edge. Wheel/trackpad scroll keeps working, expanded and collapsed.",
           checked: !!this._options.hideSidebarScrollbar,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideSidebarScrollbar",
