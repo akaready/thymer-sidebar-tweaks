@@ -2236,11 +2236,14 @@ var plugins = (() => {
     const collRow = `.sidebar-item-collection${NOT_SEPARATOR}`;
     const icons = `${scope} .sidebar--icons`;
     lines.push(
-      `${icons} .sidebar-item:has(+ ${collRow}) {`,
-      `margin-bottom: ${gap}px !important;`,
-      `}`,
-      `${icons} ${collRow} + ${collRow} {`,
+      `${icons} ${collRow} {`,
       `margin-top: ${gap}px !important;`,
+      `}`,
+      // No gap directly under the Collections heading or as the very first row.
+      `${icons} .sidebar-item-collsheading + ${collRow},`,
+      `${icons} [data-guid="${COLLECTIONS_HEADER_GUID}"] + ${collRow},`,
+      `${icons} ${collRow}:first-child {`,
+      `margin-top: 0 !important;`,
       `}`
     );
   }
@@ -2605,7 +2608,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.15";
+  var PLUGIN_VERSION = "1.0.16";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
