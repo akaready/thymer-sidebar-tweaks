@@ -1661,7 +1661,9 @@ var plugins = (() => {
   // options.js
   var BODY_SCOPE_CLASS = "plg-sidebar-tweaks";
   var TAG_ROW_ATTR = "data-plg-st-tag";
-  var SEPARATOR_ROW_ATTR = "data-plg-sidebar-seperator";
+  var SEPARATOR_ROW_ATTR = "data-plg-sidebar-separator";
+  var SEPARATOR_ROW_ATTR_LEGACY = "data-plg-sidebar-seperator";
+  var NOT_SEPARATOR = `:not([${SEPARATOR_ROW_ATTR}="1"]):not([${SEPARATOR_ROW_ATTR_LEGACY}="1"])`;
   var TWEAKS_STYLE_ID = "plg-sidebar-tweaks-runtime-style";
   var TAGS_HEADER_GUID = "id-hdr-tags";
   var COLLECTIONS_HEADER_GUID = "id-hdr-collections";
@@ -2087,7 +2089,7 @@ var plugins = (() => {
   function emitCollectionRowGapRules(lines, scope, options) {
     if (!tunedEnabled(options.collectionRowGap)) return;
     const gap = tunedValue(options.collectionRowGap);
-    const collRow = `.sidebar-item-collection:not([${SEPARATOR_ROW_ATTR}="1"])`;
+    const collRow = `.sidebar-item-collection${NOT_SEPARATOR}`;
     const icons = `${scope} .sidebar--icons`;
     lines.push(
       `${icons} .sidebar-item:has(+ ${collRow}) {`,
@@ -2102,7 +2104,7 @@ var plugins = (() => {
   function emitCollectionRowHeightRules(lines, scope, options) {
     if (!tunedEnabled(options.collectionRowHeight)) return;
     const h2 = Math.max(20, tunedValue(options.collectionRowHeight));
-    const rowSel = `${scope} .sidebar:not(.sidebar-collapsed) .sidebar--icons .sidebar-item-collection:not([${SEPARATOR_ROW_ATTR}="1"])`;
+    const rowSel = `${scope} .sidebar:not(.sidebar-collapsed) .sidebar--icons .sidebar-item-collection${NOT_SEPARATOR}`;
     const actionsSel = `${rowSel} > div[style*="flex"]`;
     lines.push(
       `${rowSel} {`,
@@ -2459,7 +2461,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.13";
+  var PLUGIN_VERSION = "1.0.15";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
@@ -3345,7 +3347,7 @@ var plugins = (() => {
           type: "checkbox",
           name: "hideCollections",
           label: "Hide Collections",
-          desc: "Hides the Collections heading and every collection row, including separators from Sidebar Seperators.",
+          desc: "Hides the Collections heading and every collection row, including separators from Sidebar Separators.",
           checked: !!this._options.hideCollections,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideCollections",

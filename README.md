@@ -4,7 +4,7 @@ Sidebar visibility, behavior, and layout options for Thymer's collections sideba
 
 Open **Plugin: Sidebar Tweaks** from the command palette, or click the sidebar icon in the status bar.
 
-Replaces the older **Sidebar Empty Toggle** and **Sidebar Trash Hide** plugins (archived under `plugins/_archive/`). For movable theme-colored separators, see <a href="../sidebar-seperators/" target="_blank" rel="noopener noreferrer">Sidebar Seperators</a>.
+Replaces the older **Sidebar Empty Toggle** and **Sidebar Trash Hide** plugins (archived under `plugins/_archive/`). For movable theme-colored separators, see <a href="../sidebar-separators/" target="_blank" rel="noopener noreferrer">Sidebar Separators</a>.
 
 Plugins are made with 🤍 for the Thymer community. Free to use, fork, and hack on for <a href="LICENSE" target="_blank" rel="noopener noreferrer">non-commercial use</a>.
 
