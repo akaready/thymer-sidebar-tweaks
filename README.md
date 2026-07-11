@@ -18,12 +18,13 @@ Enjoy! 🙏
   </a>
 </p>
 
+![Sidebar Tweaks plugin UI](./sidebar-tweaks.png)
 
 &nbsp;
 
 ## 📦 Install
 
-**Recommended:** Use the <a href="https://github.com/ahpatel/thymer-plugins-manager" target="_blank" rel="noopener noreferrer">Thymer Plugins Manager</a> and install via <a href="https://github.com/akaready/thymer-sidebar-tweaks" target="_blank" rel="noopener noreferrer">this repo's URL</a>. You'll get notifications when new versions ship.
+**Recommended:** Use the <a href="https://github.com/ahpatel/thymer-plugins-manager" target="_blank" rel="noopener noreferrer">Thymer Plugins Manager</a> and install via <a href="https://github.com/akaready/thymer-[^"]*" target="_blank" rel="noopener noreferrer">this repo's URL</a> for auto updates.
 
 **Manual:** copy <a href="plugin.js" target="_blank" rel="noopener noreferrer"><code>plugin.js</code></a> and <a href="plugin.json" target="_blank" rel="noopener noreferrer"><code>plugin.json</code></a> from this repo into Thymer's plugin editor.
 
