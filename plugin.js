@@ -2608,7 +2608,7 @@ var plugins = (() => {
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.0.16";
+  var PLUGIN_VERSION = "1.0.17";
   var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
@@ -2845,11 +2845,14 @@ var plugins = (() => {
      */
     _initAvatarGuard() {
       this._avatarGuardObserver = new MutationObserver((mutations) => {
-        if (!this._lockAvatarActive()) return;
+        const pin = this._pinTagsActive();
+        const avatar = this._lockAvatarActive();
+        if (!pin && !avatar) return;
         for (const m of mutations) {
           const t = m.target;
           if (t instanceof HTMLElement && (t.classList.contains("sidebar") || t.classList.contains("panels-grid-sidebar"))) {
-            this._startAvatarGuard();
+            if (pin) syncPinTagsLayout(true);
+            if (avatar) this._startAvatarGuard();
             return;
           }
         }
