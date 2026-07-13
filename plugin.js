@@ -3046,6 +3046,8 @@ ${report}
     hideCollapseArrow: false,
     hideSearch: false,
     hideJump: false,
+    hideQuickAdd: false,
+    hideNewPage: false,
     hideCollectionOptionMenus: false,
     hideWorkspaceSwitcher: false,
     hideCollapsedChevron: false,
@@ -3082,6 +3084,8 @@ ${report}
       "hideCollapseArrow",
       "hideSearch",
       "hideJump",
+      "hideQuickAdd",
+      "hideNewPage",
       "hideCollectionOptionMenus",
       "hideWorkspaceSwitcher",
       "hideCollapsedChevron",
@@ -3149,6 +3153,16 @@ ${report}
       label: "Jump",
       selectors: [`${SIDEBAR_SCOPE} [data-guid="id-jump"]`]
     },
+    // Mobile-first sidebar-top rows (probed on iPhone 2026-07-13): Quick Add is
+    // mobile-only chrome; "New page in…" (id-new) can appear on desktop too.
+    hideQuickAdd: {
+      label: "Quick Add",
+      selectors: [`${SIDEBAR_SCOPE} [data-guid="id-quick-add"]`]
+    },
+    hideNewPage: {
+      label: "New page",
+      selectors: [`${SIDEBAR_SCOPE} [data-guid="id-new"]`]
+    },
     hideSearch: {
       label: "Search",
       selectors: [
@@ -3165,6 +3179,10 @@ ${report}
     const migrated = { ...source };
     if (migrated.removePanelResizeGutter != null && migrated.fixPanelAnimation == null) {
       migrated.fixPanelAnimation = migrated.removePanelResizeGutter;
+    }
+    if (migrated.hideQuickActions != null) {
+      if (migrated.hideQuickAdd == null) migrated.hideQuickAdd = migrated.hideQuickActions;
+      if (migrated.hideNewPage == null) migrated.hideNewPage = migrated.hideQuickActions;
     }
     if (migrated.hideCollapsedSearch != null && migrated.hideSearch == null) {
       migrated.hideSearch = migrated.hideCollapsedSearch;
@@ -3233,6 +3251,7 @@ ${report}
   __name(hideSidebarGuid, "hideSidebarGuid");
   function buildTweaksCSS(options) {
     const scope = `html:not(.vibe-shift) body.${BODY_SCOPE_CLASS}`;
+    const desktopScope = `html:not(.vibe-shift):not([data-device="mobile"]) body.${BODY_SCOPE_CLASS}`;
     const lines = [];
     if (options.hideCollections) {
       emitCollectionsHeaderHide(lines, scope);
@@ -3263,8 +3282,10 @@ ${report}
     if (options.hideCollapseArrow) {
       lines.push(`${scope} .sidebar .sidebar--toggler { display: none !important; }`);
     }
-    emitCollapsedTogglerRules(lines, scope, options);
+    emitCollapsedTogglerRules(lines, desktopScope, options);
     if (options.hideJump) hideSidebarGuid(lines, scope, "id-jump");
+    if (options.hideQuickAdd) hideSidebarGuid(lines, scope, "id-quick-add");
+    if (options.hideNewPage) hideSidebarGuid(lines, scope, "id-new");
     if (options.hideSearch) {
       hideSidebarGuid(lines, scope, "id-search");
       hideSidebarGuid(lines, scope, "id-search-collapsed");
@@ -3276,11 +3297,11 @@ ${report}
       lines.push(`${scope} .sidebar--icons .sidebar-item-toggler.collapsed-only { display: none !important; }`);
     } else if (tunedEnabled(options.chevronOffset)) {
       const dx = tunedValue(options.chevronOffset);
-      lines.push(`${scope} .sidebar--icons .sidebar-item-toggler.collapsed-only { transform: translateX(${dx}px) !important; }`);
+      lines.push(`${desktopScope} .sidebar--icons .sidebar-item-toggler.collapsed-only { transform: translateX(${dx}px) !important; }`);
     }
     if (options.fixPanelAnimation) {
       lines.push(
-        `${scope} .panel-h-sizer {`,
+        `${desktopScope} .panel-h-sizer {`,
         `background: none !important;`,
         `border: none !important;`,
         `border-left: none !important;`,
@@ -3291,14 +3312,14 @@ ${report}
         // Intentionally NO permanent `.sidebar { z-index }` — that buried menus.
       );
     }
-    emitHideStyledSidebarScrollbarRules(lines, scope, options);
+    emitHideStyledSidebarScrollbarRules(lines, desktopScope, options);
     lines.push(
       ...OVERLAY_STACK_SELECTORS.map((sel, i) => `${scope} ${sel}${i < OVERLAY_STACK_SELECTORS.length - 1 ? "," : " {"}`),
       `z-index: ${OVERLAY_STACK_Z_INDEX} !important;`,
       `}`
     );
-    emitLockAvatarRules(lines, scope, options);
-    emitTunedPx(lines, options.contextMenuWidth, `${scope} .cmdpal--inline.animate-open.active.focused-component { width: VALUEpx !important; }`);
+    emitLockAvatarRules(lines, desktopScope, options);
+    emitTunedPx(lines, options.contextMenuWidth, `${desktopScope} .cmdpal--inline.animate-open.active.focused-component { width: VALUEpx !important; }`);
     if (tunedEnabled(options.collapsedSidebarWidth)) {
       const w = Math.max(MIN_COLLAPSED_SIDEBAR_WIDTH, tunedValue(options.collapsedSidebarWidth));
       lines.push(
@@ -3310,15 +3331,15 @@ ${report}
         // `grid-template-columns` is authoritative: it shrinks the track so the
         // sidebar resize handle (grid-column 2) and the panels hug the sidebar's
         // right edge with no gap. Pure CSS — no JS geometry sync needed.
-        `${scope} .panels-grid-sidebar:has(.sidebar.sidebar-collapsed) {`,
+        `${desktopScope} .panels-grid-sidebar:has(.sidebar.sidebar-collapsed) {`,
         `--sidebar-width: ${w}px !important;`,
         `--sidebar-collapsed-width: ${w}px !important;`,
         `grid-template-columns: ${w}px auto 1fr !important;`,
         `}`,
         // Force the sidebar element to the same width — its inline width is the
         // untuned collapsed default, so it must be pinned to fill the shrunk track.
-        `${scope} .sidebar.sidebar-collapsed,`,
-        `${scope} .panels-grid-sidebar:has(.sidebar.sidebar-collapsed) .sidebar {`,
+        `${desktopScope} .sidebar.sidebar-collapsed,`,
+        `${desktopScope} .panels-grid-sidebar:has(.sidebar.sidebar-collapsed) .sidebar {`,
         `width: ${w}px !important;`,
         `min-width: ${w}px !important;`,
         `max-width: ${w}px !important;`,
@@ -3331,24 +3352,24 @@ ${report}
         // relies on the rail's own wheel handler for collapsed scrolling, so an
         // inert rail kills wheel scroll unless native scrolling is restored —
         // overflow-y:auto with the native bar suppressed.
-        `${scope} .sidebar.sidebar-collapsed .vscrollbar {`,
+        `${desktopScope} .sidebar.sidebar-collapsed .vscrollbar {`,
         `pointer-events: none !important;`,
         `}`,
-        `${scope} .sidebar.sidebar-collapsed .sidebar--icons {`,
+        `${desktopScope} .sidebar.sidebar-collapsed .sidebar--icons {`,
         `overflow-y: auto !important;`,
         `scrollbar-width: none !important;`,
         `}`,
-        `${scope} .sidebar.sidebar-collapsed .sidebar--icons::-webkit-scrollbar {`,
+        `${desktopScope} .sidebar.sidebar-collapsed .sidebar--icons::-webkit-scrollbar {`,
         `display: none !important;`,
         `}`
       );
     }
     if (tunedEnabled(options.expandedSidebarWidth)) {
       const w = tunedValue(options.expandedSidebarWidth);
-      lines.push(`${scope} { --sidebar-width: ${w}px !important; }`);
+      lines.push(`${desktopScope} { --sidebar-width: ${w}px !important; }`);
     }
-    emitCollectionRowGapRules(lines, scope, options);
-    emitCollectionRowHeightRules(lines, scope, options);
+    emitCollectionRowGapRules(lines, desktopScope, options);
+    emitCollectionRowHeightRules(lines, desktopScope, options);
     if (options.hideCollectionOptionMenus) {
       lines.push(`${scope} .sidebar--icons .sidebar-item-hover-only.is-option-menu { display: none !important; }`);
     }
@@ -3442,7 +3463,8 @@ ${report}
   function emitCollectionRowGapRules(lines, scope, options) {
     if (!tunedEnabled(options.collectionRowGap)) return;
     const gap = tunedValue(options.collectionRowGap);
-    const collRow = `.sidebar-item-collection${NOT_SEPARATOR}`;
+    const NOT_NESTED = ":not(.sidebar-item-ind):not(.sidebar-item-ind-2):not(.sidebar-item-ind-3):not(.sidebar-item-ind-4)";
+    const collRow = `.sidebar-item-collection${NOT_SEPARATOR}${NOT_NESTED}`;
     const icons = `${scope} .sidebar--icons`;
     lines.push(
       `${icons} ${collRow} {`,
@@ -3817,7 +3839,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.2.0";
+  var PLUGIN_VERSION = "1.2.2";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -4629,6 +4651,30 @@ ${report}
           checked: !!this._options.hideJump,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideJump",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
+          name: "hideQuickAdd",
+          label: "Hide Quick Add",
+          desc: "Hides the Quick Add row from the sidebar top (appears on mobile).",
+          checked: !!this._options.hideQuickAdd,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "hideQuickAdd",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
+          name: "hideNewPage",
+          label: "Hide New page",
+          desc: "Hides the \u201CNew page in\u2026\u201D row from the sidebar top.",
+          checked: !!this._options.hideNewPage,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "hideNewPage",
             /** @type {HTMLInputElement} */
             e.target.checked
           ), "onChange")
