@@ -3011,6 +3011,270 @@ ${report}
   }
   __name(createSettingsStore, "createSettingsStore");
 
+  // calendar-widget.js
+  function createCalendarWidget(plugin) {
+    let widget = null;
+    let viewDate = null;
+    let warnedDuplicate = false;
+    function foreignCalendarPresent() {
+      for (const el2 of document.querySelectorAll(".scal-root")) {
+        if (!el2.hasAttribute("data-plg-st-cal")) return true;
+      }
+      return false;
+    }
+    __name(foreignCalendarPresent, "foreignCalendarPresent");
+    async function openJournal(date) {
+      const users = plugin.data.getActiveUsers();
+      if (!users.length) return;
+      const user = users[0];
+      const collections = await plugin.data.getAllCollections();
+      const journal = collections.find((c) => c.isJournalPlugin());
+      if (!journal) return;
+      const panel2 = plugin.ui.getActivePanel();
+      if (!panel2) return;
+      const dt = DateTime.dateOnly(date.getFullYear(), date.getMonth(), date.getDate());
+      panel2.navigateToJournal(user, dt);
+    }
+    __name(openJournal, "openJournal");
+    function renderCalendar(container) {
+      const today = /* @__PURE__ */ new Date();
+      if (!viewDate) {
+        viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      }
+      container.replaceChildren();
+      const style = document.createElement("style");
+      style.textContent = `
+      .scal-root {
+        font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+        padding: 10px 0;
+        user-select: none;
+        width: 100%;
+        box-sizing: border-box;
+      }
+
+      .scal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        gap: 4px;
+      }
+
+      .scal-month-label {
+        font-size: clamp(14px, 4cqw, 18px);
+        font-weight: 700;
+        color: var(--color-text-primary);
+        text-align: center;
+        flex: 1;
+        line-height: 1.1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .scal-nav-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: var(--color-text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        flex-shrink: 0;
+        font-size: clamp(16px, 4cqw, 20px);
+        transition: background 0.12s, color 0.12s;
+      }
+
+      .scal-nav-btn:hover {
+        background: var(--color-background-secondary);
+        color: var(--color-text-primary);
+      }
+
+      .scal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 1px 0;
+        width: 100%;
+      }
+
+      .scal-dow {
+        text-align: center;
+        font-size: clamp(11px, 3cqw, 13px);
+        font-weight: 700;
+        color: var(--color-text-tertiary);
+        padding-bottom: 3px;
+        text-transform: uppercase;
+        line-height: 1;
+      }
+
+      .scal-day {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: clamp(14px, 3.8cqw, 16px);
+        color: var(--color-text-primary);
+        height: 28px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s;
+        line-height: 1;
+        width: 100%;
+        padding: 0;
+        box-sizing: border-box;
+        text-decoration: none;
+      }
+
+      .scal-day:hover {
+        background: var(--color-background-secondary);
+      }
+
+      .scal-day.other-month {
+        color: var(--color-text-tertiary);
+        opacity: 0.4;
+      }
+
+      .scal-day.today {
+        background: rgba(120, 120, 120, 0.18);
+        color: var(--color-text-primary);
+        font-weight: 700;
+      }
+
+      .scal-day.today:hover {
+        background: rgba(120, 120, 120, 0.24);
+      }
+    `;
+      container.appendChild(style);
+      const root = document.createElement("div");
+      root.className = "scal-root";
+      root.setAttribute("data-plg-st-cal", "1");
+      root.style.containerType = "inline-size";
+      container.appendChild(root);
+      const vd = viewDate;
+      const year = vd.getFullYear();
+      const month = vd.getMonth();
+      const header = document.createElement("div");
+      header.className = "scal-header";
+      const prevBtn = document.createElement("button");
+      prevBtn.className = "scal-nav-btn";
+      prevBtn.title = "Previous month";
+      prevBtn.textContent = "\u2039";
+      prevBtn.addEventListener("click", () => {
+        viewDate = new Date(year, month - 1, 1);
+        renderCalendar(container);
+      });
+      const monthLabel = document.createElement("span");
+      monthLabel.className = "scal-month-label";
+      monthLabel.textContent = vd.toLocaleDateString(void 0, {
+        month: "long",
+        year: "numeric"
+      });
+      const nextBtn = document.createElement("button");
+      nextBtn.className = "scal-nav-btn";
+      nextBtn.title = "Next month";
+      nextBtn.textContent = "\u203A";
+      nextBtn.addEventListener("click", () => {
+        viewDate = new Date(year, month + 1, 1);
+        renderCalendar(container);
+      });
+      header.appendChild(prevBtn);
+      header.appendChild(monthLabel);
+      header.appendChild(nextBtn);
+      root.appendChild(header);
+      const grid = document.createElement("div");
+      grid.className = "scal-grid";
+      for (const d of ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]) {
+        const cell = document.createElement("div");
+        cell.className = "scal-dow";
+        cell.textContent = d;
+        grid.appendChild(cell);
+      }
+      const firstDayRaw = new Date(year, month, 1).getDay();
+      const firstDay = (firstDayRaw + 6) % 7;
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+      const todayObj = /* @__PURE__ */ new Date();
+      const todayKey = `${todayObj.getFullYear()}-${todayObj.getMonth()}-${todayObj.getDate()}`;
+      for (let i = firstDay - 1; i >= 0; i--) {
+        grid.appendChild(makeCell(daysInPrevMonth - i, month - 1, year, todayKey, true, container));
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        grid.appendChild(makeCell(d, month, year, todayKey, false, container));
+      }
+      const trailing = (firstDay + daysInMonth) % 7;
+      const trailingCount = trailing === 0 ? 0 : 7 - trailing;
+      for (let d = 1; d <= trailingCount; d++) {
+        grid.appendChild(makeCell(d, month + 1, year, todayKey, true, container));
+      }
+      root.appendChild(grid);
+    }
+    __name(renderCalendar, "renderCalendar");
+    function makeCell(day, month, year, todayKey, isOtherMonth, container) {
+      const date = new Date(year, month, day);
+      const ry = date.getFullYear();
+      const rm = date.getMonth();
+      const rd = date.getDate();
+      const key = `${ry}-${rm}-${rd}`;
+      const cell = document.createElement("div");
+      cell.className = "scal-day";
+      if (isOtherMonth) cell.classList.add("other-month");
+      if (key === todayKey) cell.classList.add("today");
+      cell.textContent = String(rd);
+      cell.title = date.toLocaleDateString(void 0, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      });
+      cell.addEventListener("click", () => {
+        viewDate = new Date(ry, rm, 1);
+        renderCalendar(container);
+        void openJournal(date);
+      });
+      return cell;
+    }
+    __name(makeCell, "makeCell");
+    return {
+      mount() {
+        if (widget) return;
+        if (foreignCalendarPresent()) {
+          if (!warnedDuplicate) {
+            warnedDuplicate = true;
+            try {
+              plugin.ui.addToaster({
+                title: "Sidebar Tweaks",
+                message: "The standalone Sidebar Calendar plugin is already showing a calendar \u2014 disable it (or this toggle) to avoid duplicates.",
+                dismissible: true,
+                autoDestroyTime: 12e3
+              });
+            } catch {
+            }
+          }
+          return;
+        }
+        widget = plugin.ui.addSidebarWidget((container) => {
+          renderCalendar(container);
+          return () => {
+          };
+        });
+      },
+      unmount() {
+        if (!widget) return;
+        try {
+          widget.remove();
+        } catch {
+        }
+        widget = null;
+      },
+      isMounted() {
+        return !!widget;
+      }
+    };
+  }
+  __name(createCalendarWidget, "createCalendarWidget");
+
   // options.js
   var BODY_SCOPE_CLASS = "plg-sidebar-tweaks";
   var TAG_ROW_ATTR = "data-plg-st-tag";
@@ -3059,6 +3323,8 @@ ${report}
     // Behavior
     emptySidebarClick: true,
     pinTagsToBottom: false,
+    // Sidebar calendar widget by Dave (@gitdaveuk) — see calendar-widget.js.
+    showCalendar: false,
     // Layout toggles
     fixPanelAnimation: true,
     // Tuned layout — spacing moved from css-global into plugin panel
@@ -3092,6 +3358,7 @@ ${report}
       "hideSidebarScrollbar",
       "emptySidebarClick",
       "pinTagsToBottom",
+      "showCalendar",
       "fixPanelAnimation"
     ]
   );
@@ -3374,6 +3641,13 @@ ${report}
       lines.push(`${scope} .sidebar--icons .sidebar-item-hover-only.is-option-menu { display: none !important; }`);
     }
     emitPinTagsRules(lines, scope, options);
+    if (options.showCalendar) {
+      lines.push(
+        `${scope} .sidebar--icons .sidebar-widget-container:has(.scal-root) {`,
+        `padding: 4px 0;`,
+        `}`
+      );
+    }
     return lines.join("\n");
   }
   __name(buildTweaksCSS, "buildTweaksCSS");
@@ -3839,7 +4113,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.2.2";
+  var PLUGIN_VERSION = "1.3.1";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -3981,6 +4255,10 @@ ${report}
     _boundTagsHeaderClick = null;
     /** Kill switch: true = plugin loaded but all sidebar effects off. */
     _disabled = false;
+    /** Sidebar calendar widget (by @gitdaveuk) — see calendar-widget.js. */
+    _calendarWidget = createCalendarWidget(this);
+    /** @type {string | null} */
+    _calendarReloadHandlerId = null;
     onLoad() {
       pingInstall("sidebar-tweaks");
       pingActive("sidebar-tweaks");
@@ -4037,6 +4315,7 @@ ${report}
       }
       if (this._disabled) return;
       document.body.classList.add(BODY_SCOPE_CLASS);
+      this._calendarReloadHandlerId = this.events.on("reload", () => this._syncCalendarWidget());
       this._observer = new MutationObserver((mutations) => {
         markTagRows();
         this._applyHeadingRenames();
@@ -4147,6 +4426,14 @@ ${report}
         this._detachSettingsLifecycle?.();
       } catch {
       }
+      if (this._calendarReloadHandlerId) {
+        try {
+          this.events.off(this._calendarReloadHandlerId);
+        } catch {
+        }
+        this._calendarReloadHandlerId = null;
+      }
+      this._calendarWidget.unmount();
       this._teardownAvatarGuard();
       this._restoreHeadingRenames();
       this._detachHideCollectionsHeaderListener();
@@ -4218,6 +4505,7 @@ ${report}
       this._syncEmptyClickListeners();
       this._syncHideCollectionsHeaderBehavior();
       this._syncPinTagsBehavior();
+      this._syncCalendarWidget();
       this._applyHeadingRenames();
       markTagRows();
       if (this._hideCollectionsHeaderActive()) {
@@ -4230,6 +4518,16 @@ ${report}
     }
     _pinTagsActive() {
       return !!this._options.pinTagsToBottom && !this._options.hideTags;
+    }
+    _calendarActive() {
+      return !this._disabled && !!this._options.showCalendar;
+    }
+    _syncCalendarWidget() {
+      if (this._calendarActive()) {
+        this._calendarWidget.mount();
+      } else {
+        this._calendarWidget.unmount();
+      }
     }
     _syncPinTagsBehavior() {
       const active = this._pinTagsActive();
@@ -4835,6 +5133,18 @@ ${report}
           checked: !!this._options.pinTagsToBottom,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "pinTagsToBottom",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
+          name: "showCalendar",
+          label: "Show calendar",
+          desc: "Adds a month calendar to the sidebar \u2014 click a day to open its Journal. Calendar by Dave (@gitdaveuk): github.com/gitdaveuk/thymer-sidebar-calendar. Disable the standalone Sidebar Calendar plugin to avoid duplicates.",
+          checked: !!this._options.showCalendar,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "showCalendar",
             /** @type {HTMLInputElement} */
             e.target.checked
           ), "onChange")

@@ -40,11 +40,19 @@ Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Collectio
 ### Behavior
 
 - Click empty sidebar to collapse/expand (on by default)
+- Pin Tags to bottom
+- Show calendar — a month calendar in the sidebar; click a day to open its Journal (see Credits)
 
 ### Layout
 
 Panel-animation toggle, plus optional tuned widths: collapsed sidebar, expanded sidebar, and right-click context menu.
 
+
+&nbsp;
+
+## 🙌 Credits
+
+The **Show calendar** widget is by <a href="https://github.com/gitdaveuk" target="_blank" rel="noopener noreferrer">Dave (@gitdaveuk)</a>, integrated with credit and thanks from his <a href="https://github.com/gitdaveuk/thymer-sidebar-calendar" target="_blank" rel="noopener noreferrer">thymer-sidebar-calendar</a> plugin — check it out standalone if you just want the calendar. 🗓️
 
 &nbsp;
 
