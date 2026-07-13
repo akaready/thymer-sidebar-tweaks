@@ -2416,7 +2416,7 @@ ${report}
     return wrap;
   }
   __name(renderPluginHeaderHelper, "renderPluginHeaderHelper");
-  function pluginHeaderFromConfig(conf, { version, helper, helperOpen, helperDefaultOpen, onHelperToggle, killSwitch, feedback } = {}) {
+  function pluginHeaderFromConfig(conf, { version, helper, helperOpen, helperDefaultOpen, onHelperToggle, killSwitch, feedback, scope } = {}) {
     const resolvedHelper = helper ?? conf.instructions;
     return pluginHeader({
       title: conf.name || "",
@@ -2432,7 +2432,8 @@ ${report}
       repository: conf.repository,
       coffee: conf.coffee,
       killSwitch,
-      feedback
+      feedback,
+      scope
     });
   }
   __name(pluginHeaderFromConfig, "pluginHeaderFromConfig");
@@ -2802,6 +2803,213 @@ ${report}
     }
   }
   __name(setPluginDisabled, "setPluginDisabled");
+
+  // ../../shared/plugin-settings.js
+  function createSettingsStore(plugin, {
+    slug,
+    key = "settings",
+    version,
+    normalize = /* @__PURE__ */ __name((raw) => raw && typeof raw === "object" ? raw : {}, "normalize"),
+    scopeKey = null,
+    readSynced = null,
+    pickSynced = null
+  }) {
+    const readSyncedBlob = readSynced || ((custom) => custom?.[key]);
+    const pickSyncedSubset = pickSynced || ((s) => s);
+    let current = {};
+    let diverged = false;
+    let pushInFlight = false;
+    const workspaceGuid = /* @__PURE__ */ __name(() => {
+      try {
+        const guid = plugin.getWorkspaceGuid?.();
+        if (guid) return guid;
+      } catch {
+      }
+      return "default";
+    }, "workspaceGuid");
+    const storageKey = /* @__PURE__ */ __name(() => {
+      const scope = scopeKey ? `/${scopeKey()}` : "";
+      return `${slug}/${workspaceGuid()}${scope}/settings`;
+    }, "storageKey");
+    const readCustom = /* @__PURE__ */ __name(() => {
+      try {
+        const conf = plugin.getConfiguration?.();
+        const custom = conf && conf.custom;
+        return custom && typeof custom === "object" ? (
+          /** @type {Record<string, unknown>} */
+          custom
+        ) : {};
+      } catch {
+        return {};
+      }
+    }, "readCustom");
+    const readLocalRaw = /* @__PURE__ */ __name(() => {
+      try {
+        const raw = localStorage.getItem(storageKey());
+        if (raw === null) return null;
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return null;
+      }
+    }, "readLocalRaw");
+    const normalizedStringify = /* @__PURE__ */ __name((raw) => JSON.stringify(normalize(raw)), "normalizedStringify");
+    const store = {
+      /** Read-only: never writes either store. */
+      load() {
+        const local = readLocalRaw();
+        if (local !== null) {
+          current = normalize(local);
+          diverged = true;
+        } else {
+          current = normalize(readSyncedBlob(readCustom()) || {});
+          diverged = false;
+        }
+        return { settings: current, diverged };
+      },
+      get() {
+        return current;
+      },
+      isDiverged() {
+        return diverged;
+      },
+      /**
+       * Every edit is device-local. First edit snapshots the FULL settings
+       * (inherited values of untouched keys survive). localStorage throwing
+       * (private mode) leaves the edit in memory for the session — still
+       * reported diverged so the pill/push UI works, and push still syncs.
+       */
+      update(patch) {
+        current = normalize({ ...current, ...patch });
+        if (normalizedStringify(readSyncedBlob(readCustom())) === JSON.stringify(current)) {
+          try {
+            localStorage.removeItem(storageKey());
+          } catch {
+          }
+          diverged = false;
+          return { settings: current, diverged };
+        }
+        diverged = true;
+        try {
+          localStorage.setItem(storageKey(), JSON.stringify(current));
+        } catch {
+        }
+        return { settings: current, diverged };
+      },
+      /**
+       * The explicit ↑ "Apply to all devices": ONE saveConfiguration (which
+       * reloads the plugin), then the local blob is cleared so this device
+       * goes back to following the synced config. Resolves true when the
+       * settings are known to be in synced config (pushed or already equal).
+       */
+      async pushToAll() {
+        if (pushInFlight) return false;
+        pushInFlight = true;
+        try {
+          const api = await resolveConfigApi(plugin);
+          if (!api || typeof api.saveConfiguration !== "function") return false;
+          let conf = {};
+          try {
+            conf = api.getConfiguration?.() || plugin.getConfiguration?.() || {};
+          } catch {
+            return false;
+          }
+          if (typeof conf.name !== "string" || !conf.name.trim()) return false;
+          const custom = conf.custom && typeof conf.custom === "object" ? conf.custom : {};
+          const subset = pickSyncedSubset(normalize(current));
+          try {
+            localStorage.removeItem(storageKey());
+          } catch {
+          }
+          diverged = false;
+          try {
+            if (normalizedStringify(readSyncedBlob(
+              /** @type {any} */
+              custom
+            )) !== normalizedStringify(subset)) {
+              await api.saveConfiguration(configWithPluginVersion(conf, { [key]: subset }, version));
+            }
+          } catch (err) {
+            try {
+              localStorage.setItem(storageKey(), JSON.stringify(current));
+            } catch {
+            }
+            diverged = true;
+            throw err;
+          }
+          return true;
+        } catch {
+          return false;
+        } finally {
+          pushInFlight = false;
+        }
+      },
+      /** The ↺ "Discard device changes": drop local, re-adopt synced. */
+      discardLocal() {
+        try {
+          localStorage.removeItem(storageKey());
+        } catch {
+        }
+        current = normalize(readSyncedBlob(readCustom()) || {});
+        diverged = false;
+        return current;
+      },
+      /**
+       * For folding into `setPluginDisabled(plugin, off, version, customPatch)`
+       * so a kill-switch toggle carries staged device settings in the SAME
+       * save (one reload, no race — CLAUDE.md rule). Call markFlushed() after
+       * that save succeeds if the fold should count as a push.
+       */
+      pendingCustomPatch() {
+        return diverged ? { [key]: pickSyncedSubset(normalize(current)) } : {};
+      },
+      markFlushed() {
+        try {
+          localStorage.removeItem(storageKey());
+        } catch {
+        }
+        diverged = false;
+      },
+      /**
+       * Live-follow for non-diverged devices: when another device pushes,
+       * `global-plugin.updated` fires here; re-read the synced blob and, if
+       * it changed semantically, hand the fresh settings to the plugin's
+       * central apply (which each plugin already guards with its kill
+       * switch). Returns a detach function for onUnload.
+       */
+      attachLifecycle({ onRemoteChange } = {}) {
+        const handlerIds = [];
+        try {
+          const id = plugin.events?.on?.("global-plugin.updated", (event) => {
+            try {
+              if (diverged) return;
+              if (event?.source?.isLocal) return;
+              const guid = plugin.getGuid?.();
+              const eventGuid = event?.pluginGuid || event?.guid || event?.rootId || null;
+              if (eventGuid && guid && eventGuid !== guid) return;
+              const next = normalize(readSyncedBlob(readCustom()) || {});
+              if (JSON.stringify(next) === JSON.stringify(current)) return;
+              current = next;
+              onRemoteChange?.(current);
+            } catch {
+            }
+          });
+          if (id) handlerIds.push(id);
+        } catch {
+        }
+        return () => {
+          for (const id of handlerIds) {
+            try {
+              plugin.events?.off?.(id);
+            } catch {
+            }
+          }
+        };
+      }
+    };
+    return store;
+  }
+  __name(createSettingsStore, "createSettingsStore");
 
   // options.js
   var BODY_SCOPE_CLASS = "plg-sidebar-tweaks";
@@ -3609,8 +3817,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.1.6";
-  var OPTIONS_STORAGE_PREFIX = "sidebar-tweaks/";
+  var PLUGIN_VERSION = "1.2.0";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -3705,6 +3912,21 @@ ${report}
     }
     /** @type {SidebarTweaksOptions} */
     _options = normalizeOptions(null);
+    /**
+     * Per-device settings store (shared model): device follows the synced
+     * config until edited here; edits are local until the explicit
+     * "Apply to all devices" push. Loads never write any store.
+     * (Field initializer is safe — creation only captures references; the
+     * store first touches plugin context in onLoad's `load()`.)
+     */
+    _settingsStore = createSettingsStore(this, {
+      slug: "sidebar-tweaks",
+      key: "options",
+      version: PLUGIN_VERSION,
+      normalize: /* @__PURE__ */ __name((raw) => normalizeOptions(raw), "normalize")
+    });
+    /** @type {(() => void) | null} */
+    _detachSettingsLifecycle = null;
     /** @type {HTMLElement | null} */
     _panelEl = null;
     /** @type {PluginStatusBarItem | null} */
@@ -3721,26 +3943,10 @@ ${report}
     _hoverSurface = null;
     /** @type {boolean} */
     _toggleLock = false;
-    /** @type {boolean} */
-    _configSaveDirty = false;
-    /** @type {boolean} */
-    _configSaveInFlight = false;
-    /** @type {boolean} */
-    _configSaveQueued = false;
     /** @type {number} */
     _tagsSidebarTransitionLock = 0;
     /** @type {ReturnType<typeof setTimeout> | null} */
     _collRestoreTimer = null;
-    /** @type {boolean} */
-    _isUnloading = false;
-    /** @type {string[]} */
-    _handlerIds = [];
-    /** @type {EventListener} */
-    _pageLifecycleListener = /* @__PURE__ */ __name(() => {
-    }, "_pageLifecycleListener");
-    /** @type {EventListener} */
-    _visibilityListener = /* @__PURE__ */ __name(() => {
-    }, "_visibilityListener");
     /** @type {Record<string, string>} Original heading text, captured before renaming. */
     _originalHeadingText = {};
     /** @type {MutationObserver | null} */
@@ -3758,7 +3964,8 @@ ${report}
       pingActive("sidebar-tweaks");
       void syncPluginVersionOnLoad(this, PLUGIN_VERSION);
       this._disabled = readKillSwitch(this);
-      this._options = this._loadOptions();
+      this._options = /** @type {SidebarTweaksOptions} */
+      this._settingsStore.load().settings;
       this.ui.injectCSS(PANEL_CSS);
       this.ui.injectCSS(RENAME_INPUT_CSS);
       this._statusItem = this.ui.addStatusBarItem({
@@ -3790,19 +3997,14 @@ ${report}
         this._panelEl = root;
         this._renderPanel();
       });
-      this._handlerIds.push(this.events.on("panel.closed", () => this._flushConfigSave()));
-      this._pageLifecycleListener = () => this._flushConfigSave();
-      this._visibilityListener = () => {
-        if (document.visibilityState === "hidden") this._flushConfigSave();
-      };
-      try {
-        window.addEventListener("pagehide", this._pageLifecycleListener);
-      } catch {
-      }
-      try {
-        document.addEventListener("visibilitychange", this._visibilityListener);
-      } catch {
-      }
+      this._detachSettingsLifecycle = this._settingsStore.attachLifecycle({
+        onRemoteChange: /* @__PURE__ */ __name((options) => {
+          this._options = /** @type {SidebarTweaksOptions} */
+          options;
+          this._applyOptions();
+          this._renderPanel();
+        }, "onRemoteChange")
+      });
       try {
         const staleRoot = document.querySelector(".plg-sidebar-tweaks-panel");
         if (staleRoot && staleRoot.parentElement) {
@@ -3919,8 +4121,10 @@ ${report}
       }
     }
     onUnload() {
-      this._isUnloading = true;
-      this._flushConfigSave();
+      try {
+        this._detachSettingsLifecycle?.();
+      } catch {
+      }
       this._teardownAvatarGuard();
       this._restoreHeadingRenames();
       this._detachHideCollectionsHeaderListener();
@@ -3934,21 +4138,6 @@ ${report}
       );
       this._detachEmptyClickListeners();
       this._clearHoverCursor();
-      for (const id of this._handlerIds) {
-        try {
-          this.events.off(id);
-        } catch {
-        }
-      }
-      this._handlerIds = [];
-      try {
-        window.removeEventListener("pagehide", this._pageLifecycleListener);
-      } catch {
-      }
-      try {
-        document.removeEventListener("visibilitychange", this._visibilityListener);
-      } catch {
-      }
       if (this._observer) {
         this._observer.disconnect();
         this._observer = null;
@@ -3966,52 +4155,40 @@ ${report}
         node.removeAttribute(TAG_ROW_ATTR);
       });
     }
-    /** @returns {SidebarTweaksOptions} */
-    _loadOptions() {
-      const stored = this._readStoredOptions();
-      const custom = this._customConfig().options;
-      return normalizeOptions({ ...stored || {}, ...custom || {} });
+    /**
+     * Scope-cluster wiring for the header pill: push = one saveConfiguration
+     * (the reload's hot-reload heal re-renders the panel); discard = two-tap
+     * armed in the shared cluster, then re-adopt synced values here.
+     */
+    _scopeArgs() {
+      return {
+        diverged: this._settingsStore.isDiverged(),
+        onPush: /* @__PURE__ */ __name(() => {
+          void this._settingsStore.pushToAll().then((ok) => {
+            if (!ok) return;
+            try {
+              this.ui.addToaster({ title: "Sidebar Tweaks", message: "Settings applied to all devices", dismissible: true, autoDestroyTime: 3e3 });
+            } catch {
+            }
+            this._refreshScopePill();
+          });
+        }, "onPush"),
+        onDiscard: /* @__PURE__ */ __name(() => {
+          this._options = /** @type {SidebarTweaksOptions} */
+          this._settingsStore.discardLocal();
+          this._applyOptions();
+          this._renderPanel();
+          try {
+            this.ui.addToaster({ title: "Sidebar Tweaks", message: "Reverted to synced settings", dismissible: true, autoDestroyTime: 3e3 });
+          } catch {
+          }
+        }, "onDiscard")
+      };
     }
-    _optionsStorageKey() {
-      const ws = typeof this.getWorkspaceGuid === "function" ? this.getWorkspaceGuid() : "default";
-      return `${OPTIONS_STORAGE_PREFIX}${ws}/options`;
-    }
-    /** @returns {Record<string, unknown> | null} */
-    _readStoredOptions() {
-      try {
-        const raw = localStorage.getItem(this._optionsStorageKey());
-        if (raw) return JSON.parse(raw);
-      } catch {
-      }
-      return null;
-    }
-    /** @param {SidebarTweaksOptions} options */
-    _writeStoredOptions(options) {
-      try {
-        localStorage.setItem(this._optionsStorageKey(), JSON.stringify(options));
-      } catch {
-      }
-    }
-    _persistOptions() {
-      this._options = normalizeOptions(this._options);
-      this._writeStoredOptions(this._options);
-      this._configSaveDirty = true;
-    }
-    _flushConfigSave() {
-      if (this._configSaveDirty) void this._saveOptionsNow();
-    }
-    /** @returns {Record<string, unknown>} */
-    _customConfig() {
-      try {
-        const conf = this.getConfiguration && this.getConfiguration();
-        const custom = conf && conf.custom;
-        return custom && typeof custom === "object" ? (
-          /** @type {Record<string, unknown>} */
-          custom
-        ) : {};
-      } catch {
-        return {};
-      }
+    /** Swap just the pill cluster — never nukes inputs mid-edit. */
+    _refreshScopePill() {
+      const el2 = this._panelEl?.querySelector?.(".tps-scope");
+      if (el2) el2.replaceWith(scopeCluster(this._scopeArgs()));
     }
     _applyOptions() {
       if (this._disabled) return;
@@ -4324,9 +4501,10 @@ ${report}
      * @param {boolean} value
      */
     _setToggle(key, value) {
-      this._options = normalizeOptions({ ...this._options, [key]: value });
+      this._options = /** @type {SidebarTweaksOptions} */
+      this._settingsStore.update({ [key]: value }).settings;
       this._applyOptions();
-      this._persistOptions();
+      this._refreshScopePill();
     }
     /**
      * @param {keyof SidebarTweaksOptions} key
@@ -4335,12 +4513,11 @@ ${report}
     _setTunedEnabled(key, enabled) {
       const current = this._options[key];
       if (!current || typeof current !== "object") return;
-      this._options = normalizeOptions({
-        ...this._options,
+      this._options = /** @type {SidebarTweaksOptions} */
+      this._settingsStore.update({
         [key]: { ...current, enabled }
-      });
+      }).settings;
       this._applyOptions();
-      this._persistOptions();
       this._renderPanel();
     }
     /**
@@ -4350,76 +4527,12 @@ ${report}
     _setTunedValue(key, value) {
       const current = this._options[key];
       if (!current || typeof current !== "object") return;
-      this._options = normalizeOptions({
-        ...this._options,
+      this._options = /** @type {SidebarTweaksOptions} */
+      this._settingsStore.update({
         [key]: { ...current, value }
-      });
+      }).settings;
       this._applyOptions();
-      this._persistOptions();
-    }
-    async _saveOptionsNow() {
-      if (this._configSaveInFlight) {
-        this._configSaveQueued = true;
-        return;
-      }
-      if (!this._configSaveDirty) return;
-      this._configSaveInFlight = true;
-      try {
-        const options = normalizeOptions(this._options);
-        this._writeStoredOptions(options);
-        const plugin = this._globalPluginApi() || await this._ownGlobalPlugin();
-        if (!plugin || typeof plugin.saveConfiguration !== "function") return;
-        const conf = (
-          /** @type {Record<string, unknown>} */
-          plugin.getConfiguration ? plugin.getConfiguration() : {}
-        );
-        const custom = (
-          /** @type {Record<string, unknown>} */
-          conf && conf.custom && typeof conf.custom === "object" ? conf.custom : {}
-        );
-        if (JSON.stringify(custom.options || {}) === JSON.stringify(options)) {
-          this._configSaveDirty = false;
-          return;
-        }
-        await plugin.saveConfiguration(
-          /** @type {any} */
-          configWithPluginVersion(conf, {
-            schemaVersion: 1,
-            options
-          }, PLUGIN_VERSION)
-        );
-        this._configSaveDirty = false;
-      } catch {
-      } finally {
-        this._configSaveInFlight = false;
-        if (this._configSaveQueued && !this._isUnloading) {
-          this._configSaveQueued = false;
-          void this._saveOptionsNow();
-        }
-      }
-    }
-    /** @returns {PluginGlobalPluginAPI | null} */
-    _globalPluginApi() {
-      try {
-        const ownGuid = this.getGuid && this.getGuid();
-        if (ownGuid && this.data && typeof this.data.getPluginByGuid === "function") {
-          const byGuid = this.data.getPluginByGuid(ownGuid);
-          if (byGuid && typeof byGuid.saveConfiguration === "function") return byGuid;
-        }
-      } catch {
-      }
-      return null;
-    }
-    async _ownGlobalPlugin() {
-      const direct = this._globalPluginApi();
-      if (direct) return direct;
-      try {
-        const ownGuid = this.getGuid && this.getGuid();
-        const plugins = await this.data.getAllGlobalPlugins();
-        return plugins.find((p) => p && p.getGuid && p.getGuid() === ownGuid) || plugins.find((p) => p && p.getName && p.getName() === "Sidebar Tweaks") || null;
-      } catch {
-        return null;
-      }
+      this._refreshScopePill();
     }
     async _openPanel() {
       if (this._panelEl && document.contains(this._panelEl)) return;
@@ -4434,19 +4547,23 @@ ${report}
     _renderPanel() {
       if (!this._panelEl) return;
       this._panelEl.replaceChildren(panel({ pluginClass: `${ROOT_CLASS}-panel` }, [
-        pluginHeaderFromConfig(this.getConfiguration(), {
-          version: PLUGIN_VERSION,
-          killSwitch: {
-            on: !this._disabled,
-            onToggle: /* @__PURE__ */ __name((nextOn) => {
-              const options = normalizeOptions(this._options);
-              this._writeStoredOptions(options);
-              this._configSaveDirty = false;
-              void setPluginDisabled(this, !nextOn, PLUGIN_VERSION, { schemaVersion: 1, options });
-            }, "onToggle")
-          },
-          feedback: { data: this.data }
-        }),
+        // Cast: pluginHeaderFromConfig's JSDoc param typedef in shared/
+        // helpers.js is missing `scope` (it is accepted and forwarded).
+        pluginHeaderFromConfig(
+          this.getConfiguration(),
+          /** @type {any} */
+          {
+            version: PLUGIN_VERSION,
+            scope: this._scopeArgs(),
+            killSwitch: {
+              on: !this._disabled,
+              onToggle: /* @__PURE__ */ __name((nextOn) => {
+                void setPluginDisabled(this, !nextOn, PLUGIN_VERSION);
+              }, "onToggle")
+            },
+            feedback: { data: this.data }
+          }
+        ),
         section({ label: "Show/hide items", body: this._showHideRows() }),
         section({ label: "Renaming", body: this._renamingRows() }),
         section({ label: "Behavior", body: this._behaviorRows() }),
@@ -4645,9 +4762,10 @@ ${report}
      * @param {string} value
      */
     _setText(key, value) {
-      this._options = normalizeOptions({ ...this._options, [key]: value });
+      this._options = /** @type {SidebarTweaksOptions} */
+      this._settingsStore.update({ [key]: value }).settings;
       this._applyOptions();
-      this._persistOptions();
+      this._refreshScopePill();
     }
     _behaviorRows() {
       return [
