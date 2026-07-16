@@ -4244,7 +4244,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.3.4";
+  var PLUGIN_VERSION = "1.3.5";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -4606,7 +4606,13 @@ ${report}
         localUnavailable: !!this._settingsStore.isLocalUnavailable(),
         onPush: /* @__PURE__ */ __name(() => {
           void this._settingsStore.pushToAll().then((ok) => {
-            if (!ok) return;
+            if (!ok) {
+              try {
+                this.ui.addToaster({ title: "Sidebar Tweaks", message: 'Could not save to all devices \u2014 the plugin config could not be written. Check the plugin\u2019s Config (does it have a "name"?) and try again.', dismissible: true, autoDestroyTime: 6e3 });
+              } catch {
+              }
+              return;
+            }
             try {
               this.ui.addToaster({ title: "Sidebar Tweaks", message: "Settings applied to all devices", dismissible: true, autoDestroyTime: 3e3 });
             } catch {
