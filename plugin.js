@@ -2727,6 +2727,50 @@ ${report}
     }
   }
   __name(syncPluginVersionOnLoad, "syncPluginVersionOnLoad");
+  async function healPluginIdentity(plugin, identity) {
+    if (!identity || typeof identity.name !== "string" || !identity.name.trim()) return;
+    const STUB_NAMES = ["New Global Plugin", "New Collection", "My Global Plugin"];
+    const api = await resolveConfigApi(plugin);
+    if (!api) return;
+    let conf = {};
+    try {
+      conf = api.getConfiguration?.() || plugin.getConfiguration?.() || {};
+    } catch {
+      return;
+    }
+    if (conf.ver === void 0 && conf.custom === void 0) return;
+    const hasStubName = typeof conf.name !== "string" || !conf.name.trim() || STUB_NAMES.includes(conf.name.trim());
+    const missingRepo = identity.sourceRepo && conf.__source_repo === void 0;
+    if (!hasStubName && !missingRepo) return;
+    try {
+      let ws = "default";
+      try {
+        ws = plugin.getWorkspaceGuid?.() || "default";
+      } catch {
+      }
+      const guardKey = `tps-identity-healed/${ws}/${identity.name}`;
+      if (sessionStorage.getItem(guardKey) === "1") return;
+      sessionStorage.setItem(guardKey, "1");
+    } catch {
+    }
+    const next = { ...conf };
+    if (hasStubName) {
+      next.name = identity.name;
+      if (identity.icon) next.icon = identity.icon;
+      if (identity.description) next.description = identity.description;
+    }
+    if (missingRepo) {
+      next.__source_repo = identity.sourceRepo;
+      if (conf.__source_files === void 0 && identity.sourceFiles) {
+        next.__source_files = { ...identity.sourceFiles };
+      }
+    }
+    try {
+      await api.saveConfiguration(next);
+    } catch {
+    }
+  }
+  __name(healPluginIdentity, "healPluginIdentity");
 
   // ../../shared/plugin-kill-switch.js
   var MARKER_SYNC_HORIZON_MS = 9e4;
@@ -4244,7 +4288,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.3.5";
+  var PLUGIN_VERSION = "1.3.6";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -4394,6 +4438,13 @@ ${report}
       pingInstall("sidebar-tweaks");
       pingActive("sidebar-tweaks");
       void syncPluginVersionOnLoad(this, PLUGIN_VERSION);
+      void healPluginIdentity(this, {
+        name: "Sidebar Tweaks",
+        icon: "layout-dashboard",
+        description: "Sidebar visibility, behavior, and layout options for Thymer's collections sidebar.",
+        sourceRepo: "https://github.com/akaready/thymer-sidebar-tweaks",
+        sourceFiles: { branch: "main", json: "plugin.json", js: "plugin.js", css: "plugin.css" }
+      });
       this._disabled = readKillSwitch(this);
       this._options = /** @type {SidebarTweaksOptions} */
       this._settingsStore.load().settings;
