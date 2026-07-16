@@ -4288,7 +4288,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.3.6";
+  var PLUGIN_VERSION = "1.3.7";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -4414,6 +4414,8 @@ ${report}
     _hoverSurface = null;
     /** @type {boolean} */
     _toggleLock = false;
+    /** @type {ReturnType<typeof setTimeout> | null} */
+    _pillSettleTimer = null;
     /** @type {number} */
     _tagsSidebarTransitionLock = 0;
     /** @type {ReturnType<typeof setTimeout> | null} */
@@ -4492,6 +4494,7 @@ ${report}
         if (staleRoot && staleRoot.parentElement) {
           this._panelEl = staleRoot.parentElement;
           this._renderPanel();
+          this._refreshScopePillUntilSettled();
         }
       } catch {
       }
@@ -4608,6 +4611,10 @@ ${report}
         this._detachSettingsLifecycle?.();
       } catch {
       }
+      if (this._pillSettleTimer) {
+        clearTimeout(this._pillSettleTimer);
+        this._pillSettleTimer = null;
+      }
       if (this._calendarReloadHandlerId) {
         try {
           this.events.off(this._calendarReloadHandlerId);
@@ -4668,7 +4675,7 @@ ${report}
               this.ui.addToaster({ title: "Sidebar Tweaks", message: "Settings applied to all devices", dismissible: true, autoDestroyTime: 3e3 });
             } catch {
             }
-            this._refreshScopePill();
+            this._refreshScopePillUntilSettled();
           });
         }, "onPush"),
         onDiscard: /* @__PURE__ */ __name(() => {
@@ -4687,6 +4694,37 @@ ${report}
     _refreshScopePill() {
       const el2 = this._panelEl?.querySelector?.(".tps-scope");
       if (el2) el2.replaceWith(scopeCluster(this._scopeArgs()));
+    }
+    /**
+     * Post-push pill settle: the push's saveConfiguration reloads the plugin,
+     * and the fresh instance can render the pill from a config snapshot the
+     * save hasn't reached yet — the follow-up config event is then filtered
+     * as local (by design), so nothing repaints and the pill sits on
+     * "This device" even though the push landed. Re-check for a few seconds
+     * until the config reads back converged; no-ops instantly when settled.
+     */
+    _refreshScopePillUntilSettled(tries = 8) {
+      if (this._pillSettleTimer) {
+        clearTimeout(this._pillSettleTimer);
+        this._pillSettleTimer = null;
+      }
+      const before = JSON.stringify(this._options);
+      const settings = (
+        /** @type {SidebarTweaksOptions} */
+        this._settingsStore.load().settings
+      );
+      if (JSON.stringify(settings) !== before) {
+        this._options = settings;
+        this._applyOptions();
+        this._renderPanel();
+      } else {
+        this._refreshScopePill();
+      }
+      if (tries <= 0 || !this._settingsStore.isDiverged()) return;
+      this._pillSettleTimer = setTimeout(() => {
+        this._pillSettleTimer = null;
+        this._refreshScopePillUntilSettled(tries - 1);
+      }, 500);
     }
     _applyOptions() {
       if (this._disabled) return;
