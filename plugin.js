@@ -4521,7 +4521,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.3.10";
+  var PLUGIN_VERSION = "1.3.11";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -5228,6 +5228,7 @@ ${report}
      * @param {MouseEvent} ev
      */
     _onDocumentClick(ev) {
+      if (ev.detail === 0) return;
       if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey) return;
       if (this._toggleLock) return;
       const sidebar = this._sidebarAtPoint(ev.clientX, ev.clientY);
