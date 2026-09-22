@@ -35,13 +35,29 @@ Enjoy! 🙏
 
 ### Show/hide items
 
-Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Collections, collection option menus, Tags, Trash.
+Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Tasks, Collections, collection option menus, Tags, Trash. Hiding Collections takes the records of any expanded collection with it.
 
 ### Behavior
 
 - Click empty sidebar to collapse/expand (on by default)
 - Pin Tags to bottom
-- Show calendar — a month calendar in the sidebar; click a day to open its Journal (see Credits)
+- Show calendar — a calendar in the sidebar; click a day to open its Journal (see Credits)
+
+#### Calendar styles
+
+Two styles, chosen separately for **desktop** and **mobile**, because a 7×6 grid does not fit a mobile drawer sidebar:
+
+- **Month** — the full grid. The desktop default.
+- **Strip** — the same grid with the other weeks scrolled away: one row of days, a day at a time. The mobile default.
+
+Same fonts, columns and spacing in both, so switching only changes how many weeks you can see.
+
+- **Click the weekday letters** (MO TU WE…) to switch styles straight from the sidebar — it saves the choice for whichever device you are on.
+- **Click the month name** to jump back to today.
+- The strip scrolls by wheel, trackpad, touch or dragging, and lands on a whole day once you stop. Today rests in the second slot, so yesterday stays in view.
+- Scrolling past the end of a month stops there; one more deliberate nudge rolls into the next month, and the month name rolls over with it.
+- Today is outlined; the day your Journal is currently showing stays filled.
+- **Strip returns to today** (on by default) slides back to today after ten seconds of not scrolling — only while the current month is showing, and never after you have picked a day.
 
 ### Layout
 
@@ -52,7 +68,7 @@ Panel-animation toggle, plus optional tuned widths: collapsed sidebar, expanded 
 
 ## 🙌 Credits
 
-The **Show calendar** widget is by <a href="https://github.com/gitdaveuk" target="_blank" rel="noopener noreferrer">Dave (@gitdaveuk)</a>, integrated with credit and thanks from his <a href="https://github.com/gitdaveuk/thymer-sidebar-calendar" target="_blank" rel="noopener noreferrer">thymer-sidebar-calendar</a> plugin — check it out standalone if you just want the calendar. 🗓️
+The **Show calendar** widget is by <a href="https://github.com/gitdaveuk" target="_blank" rel="noopener noreferrer">Dave (@gitdaveuk)</a>, integrated with credit and thanks from his <a href="https://github.com/gitdaveuk/thymer-sidebar-calendar" target="_blank" rel="noopener noreferrer">thymer-sidebar-calendar</a> plugin — check it out standalone if you just want the calendar. 🗓️ The Month style is Dave's, unchanged; the Strip style was added here.
 
 &nbsp;
 

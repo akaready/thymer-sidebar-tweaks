@@ -1502,6 +1502,81 @@ var plugins = (() => {
   white-space: nowrap;
 }
 
+/* \u2500\u2500 Keyboard shortcut rows (keyRow) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.tps-key-name { min-width: 0; }
+
+.tps-key-desc {
+  font-size: var(--tps-fs-hint);
+  color: var(--tps-text-muted);
+  white-space: normal;
+}
+
+.tps-key-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tps-space-1);
+}
+
+.tps-key-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  height: var(--tps-control-h-sm);
+  padding: 0 var(--tps-space-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace;
+  font-size: var(--tps-fs-button);
+  color: var(--tps-text);
+  background: var(--tps-bg-input);
+  border: 1px solid var(--tps-divider);
+  border-radius: var(--tps-radius-sm);
+  cursor: pointer;
+  transition: border-color var(--tps-dur-fast) var(--tps-ease-out),
+              background-color var(--tps-dur-fast) var(--tps-ease-out),
+              color var(--tps-dur-fast) var(--tps-ease-out);
+}
+
+.tps-key-chip:hover { border-color: var(--tps-border); }
+
+.tps-key-chip--unbound { color: var(--tps-text-faint); font-style: italic; }
+
+.tps-key-chip[data-capturing="true"] {
+  background: var(--tps-accent-soft);
+  border-color: var(--tps-accent);
+  color: var(--tps-accent);
+  outline: 2px solid var(--tps-accent);
+  outline-offset: 2px;
+}
+
+.tps-key-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tps-control-h-sm);
+  height: var(--tps-control-h-sm);
+  padding: 0;
+  font-size: var(--tps-fs-button);
+  line-height: 1;
+  color: var(--tps-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--tps-radius-sm);
+  cursor: pointer;
+}
+
+.tps-key-clear:hover {
+  color: var(--tps-text);
+  background: var(--tps-bg-hover);
+  border-color: var(--tps-divider);
+}
+
+.tps-key-chip:focus-visible,
+.tps-key-clear:focus-visible {
+  outline: 2px solid var(--tps-accent);
+  outline-offset: 2px;
+}
+
 /* \u2500\u2500 Tabs / segmented control \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 .tps-tabs {
@@ -2620,6 +2695,32 @@ ${report}
     return numEl;
   }
   __name(numberRow, "numberRow");
+  function tabs({ options, value, onChange, multiSelect = false }) {
+    const isActive = /* @__PURE__ */ __name((v) => multiSelect ? Array.isArray(value) && value.includes(v) : value === v, "isActive");
+    return h(
+      "div",
+      { class: "tps-tabs", role: "tablist" },
+      ...options.map((opt) => h("button", {
+        type: "button",
+        class: "tps-tab",
+        role: "tab",
+        "aria-pressed": String(isActive(opt.value)),
+        onClick: /* @__PURE__ */ __name(() => {
+          if (!onChange) return;
+          if (multiSelect) {
+            const cur = Array.isArray(value) ? value.slice() : [];
+            const i = cur.indexOf(opt.value);
+            if (i >= 0) cur.splice(i, 1);
+            else cur.push(opt.value);
+            onChange(cur);
+          } else {
+            onChange(opt.value);
+          }
+        }, "onClick")
+      }, opt.label))
+    );
+  }
+  __name(tabs, "tabs");
 
   // ../../shared/telemetry/ping.js
   var TELEMETRY_ENDPOINT = "https://thymer-plugins.goatcounter.com/count";
@@ -2838,7 +2939,11 @@ ${report}
     }
     if (conf.ver === void 0 && conf.custom === void 0) return;
     const hasStubName = typeof conf.name !== "string" || !conf.name.trim() || STUB_NAMES.includes(conf.name.trim());
-    const missingRepo = identity.sourceRepo && conf.__source_repo === void 0;
+    const staleRepo = !!identity.sourceRepo && Array.isArray(identity.legacySourceRepos) && identity.legacySourceRepos.includes(
+      /** @type {string} */
+      conf.__source_repo
+    );
+    const missingRepo = !!identity.sourceRepo && (conf.__source_repo === void 0 || staleRepo);
     if (!hasStubName && !missingRepo) return;
     try {
       let ws = "default";
@@ -3530,10 +3635,52 @@ ${report}
   __name(createSettingsStore, "createSettingsStore");
 
   // calendar-widget.js
-  function createCalendarWidget(plugin) {
+  var DOW_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+  var DRAG_THRESHOLD = 4;
+  var IDLE_RETURN_MS = 1e4;
+  var EDGE_PUSH_PX = 70;
+  var WHEEL_STEP_PX = 55;
+  var STEP_MIN_MS = 110;
+  var SETTLE_MS = 600;
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch {
+      return false;
+    }
+  }
+  __name(prefersReducedMotion, "prefersReducedMotion");
+  function createCalendarWidget(plugin, getConfig, setStyle) {
     let widget = null;
     let viewDate = null;
     let warnedDuplicate = false;
+    let lastContainer = null;
+    let lastRenderedStyle = null;
+    let stripResizeObserver = null;
+    let stripIdleTimer = 0;
+    let pendingRoll = 0;
+    let rollTimer = 0;
+    let pendingStripEdge = null;
+    let swapFromHeight = null;
+    const panelHandlerIds = [];
+    function stopStripWatchers() {
+      if (stripResizeObserver) {
+        try {
+          stripResizeObserver.disconnect();
+        } catch {
+        }
+        stripResizeObserver = null;
+      }
+      if (stripIdleTimer) {
+        clearTimeout(stripIdleTimer);
+        stripIdleTimer = 0;
+      }
+      if (rollTimer) {
+        clearTimeout(rollTimer);
+        rollTimer = 0;
+      }
+    }
+    __name(stopStripWatchers, "stopStripWatchers");
     function foreignCalendarPresent() {
       for (const el2 of document.querySelectorAll(".scal-root")) {
         if (!el2.hasAttribute("data-plg-st-cal")) return true;
@@ -3541,7 +3688,36 @@ ${report}
       return false;
     }
     __name(foreignCalendarPresent, "foreignCalendarPresent");
+    function dayKey(date) {
+      return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+    }
+    __name(dayKey, "dayKey");
+    function openJournalKey() {
+      try {
+        const panel2 = plugin.ui.getActivePanel && plugin.ui.getActivePanel();
+        const record = panel2 && typeof panel2.getActiveRecord === "function" ? panel2.getActiveRecord() : null;
+        const details = record && typeof record.getJournalDetails === "function" ? record.getJournalDetails() : null;
+        if (!details || !details.date) return null;
+        const date = details.date instanceof Date ? details.date : new Date(details.date);
+        return Number.isNaN(date.getTime()) ? null : dayKey(date);
+      } catch {
+        return null;
+      }
+    }
+    __name(openJournalKey, "openJournalKey");
+    function syncSelectedDay() {
+      if (!lastContainer || !lastContainer.isConnected) return;
+      const key = openJournalKey();
+      for (const cell of lastContainer.querySelectorAll(".scal-day")) {
+        cell.classList.toggle("selected", !!key && cell.getAttribute("data-key") === key);
+      }
+    }
+    __name(syncSelectedDay, "syncSelectedDay");
     async function openJournal(date) {
+      if (stripIdleTimer) {
+        clearTimeout(stripIdleTimer);
+        stripIdleTimer = 0;
+      }
       const users = plugin.data.getActiveUsers();
       if (!users.length) return;
       const user = users[0];
@@ -3552,6 +3728,7 @@ ${report}
       if (!panel2) return;
       const dt = DateTime.dateOnly(date.getFullYear(), date.getMonth(), date.getDate());
       panel2.navigateToJournal(user, dt);
+      requestAnimationFrame(syncSelectedDay);
     }
     __name(openJournal, "openJournal");
     function renderCalendar(container) {
@@ -3559,6 +3736,8 @@ ${report}
       if (!viewDate) {
         viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
       }
+      lastContainer = container;
+      stopStripWatchers();
       container.replaceChildren();
       const style = document.createElement("style");
       style.textContent = `
@@ -3574,7 +3753,7 @@ ${report}
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 6px;
+        margin-bottom: 10px;
         gap: 4px;
       }
 
@@ -3645,8 +3824,10 @@ ${report}
         text-decoration: none;
       }
 
-      .scal-day:hover {
-        background: var(--color-background-secondary);
+      /* Hover previews the selected-day fill, so the row reads as one control. */
+      .scal-day:hover,
+      .scal-day.selected {
+        background: rgba(120, 120, 120, 0.18);
       }
 
       .scal-day.other-month {
@@ -3654,14 +3835,111 @@ ${report}
         opacity: 0.4;
       }
 
+      /* Outlined, not just tinted \u2014 the tint alone reads as almost nothing on
+         most themes. box-sizing is border-box and the height is fixed, so the
+         border costs no layout: cells stay identical in both styles. */
       .scal-day.today {
         background: rgba(120, 120, 120, 0.18);
         color: var(--color-text-primary);
         font-weight: 700;
+        border: 1px solid var(--color-text-secondary, rgba(127, 127, 127, 0.7));
       }
 
       .scal-day.today:hover {
         background: rgba(120, 120, 120, 0.24);
+      }
+
+      /* \u2500\u2500 Strip style: the grid with the other weeks scrolled away \u2500\u2500\u2500\u2500 */
+
+      /* Deliberately NOT restyled: .scal-dow and .scal-day keep the grid's
+         fonts, heights and 7 equal columns, so toggling styles changes which
+         weeks are visible and nothing else. */
+
+      /* One week needs far less room underneath than six. */
+      .scal-root.scal-strip-mode {
+        padding-bottom: 0;
+      }
+
+      .scal-strip {
+        --scal-fade-l: 0px;
+        --scal-fade-r: 0px;
+        grid-column: 1 / -1;
+        display: flex;
+        overflow-x: auto;
+        overflow-y: hidden;
+        /* No CSS snapping: it fires the instant a scroll ends, which reads as a
+           yank. The strip settles onto a day itself, once the user is done. */
+        /* Horizontal only: vertical wheel still chains to the sidebar scroller. */
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        touch-action: manipulation;
+      }
+
+      .scal-strip::-webkit-scrollbar {
+        display: none;
+      }
+
+      /* Edge fades, on whichever side still has days to reach. */
+      .scal-strip[data-can-left],
+      .scal-strip[data-can-right] {
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--scal-fade-l), #000 calc(100% - var(--scal-fade-r)), transparent 100%);
+        mask-image: linear-gradient(to right, transparent 0, #000 var(--scal-fade-l), #000 calc(100% - var(--scal-fade-r)), transparent 100%);
+      }
+
+      .scal-strip[data-can-left] { --scal-fade-l: 14px; }
+      .scal-strip[data-can-right] { --scal-fade-r: 14px; }
+
+      /* One day per column, a seventh of the width each \u2014 the same column width
+         the grid gives them. The weekday letter travels with its own day, so a
+         number is never under the wrong letter at any scroll offset. */
+      .scal-daycol {
+        flex: 0 0 calc(100% / 7);
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+
+      .scal-strip.scal-strip-dragging {
+        cursor: grabbing;
+      }
+
+      /* The weekday letters toggle the style, in both styles. */
+      .scal-dow {
+        cursor: pointer;
+        transition: color 0.12s;
+      }
+
+      .scal-grid:hover .scal-dow {
+        color: var(--color-text-secondary);
+      }
+
+      /* Month name rolls like a slot reel when the strip crosses a month
+         boundary: the label clips, the text inside is what travels. */
+      .scal-month-text {
+        display: block;
+      }
+
+      .scal-month-text.scal-roll-out-up { animation: scal-roll-out-up 120ms ease-in forwards; }
+      .scal-month-text.scal-roll-out-down { animation: scal-roll-out-down 120ms ease-in forwards; }
+      .scal-month-text.scal-roll-in-up { animation: scal-roll-in-up 170ms ease-out; }
+      .scal-month-text.scal-roll-in-down { animation: scal-roll-in-down 170ms ease-out; }
+
+      @keyframes scal-roll-out-up { to { transform: translateY(-130%); opacity: 0; } }
+      @keyframes scal-roll-out-down { to { transform: translateY(130%); opacity: 0; } }
+      @keyframes scal-roll-in-up { from { transform: translateY(130%); opacity: 0; } }
+      @keyframes scal-roll-in-down { from { transform: translateY(-130%); opacity: 0; } }
+
+      /* In strip mode the month label is also the "back to today" control. */
+      .scal-month-label--jump {
+        cursor: pointer;
+        padding: 2px 6px;
+        border-radius: 4px;
+        transition: background 0.12s;
+      }
+
+      .scal-month-label--jump:hover {
+        background: var(--color-background-secondary);
       }
     `;
       container.appendChild(style);
@@ -3685,10 +3963,34 @@ ${report}
       });
       const monthLabel = document.createElement("span");
       monthLabel.className = "scal-month-label";
-      monthLabel.textContent = vd.toLocaleDateString(void 0, {
+      const monthText = document.createElement("span");
+      monthText.className = "scal-month-text";
+      monthText.textContent = vd.toLocaleDateString(void 0, {
         month: "long",
         year: "numeric"
       });
+      monthLabel.appendChild(monthText);
+      if (pendingRoll) {
+        monthText.classList.add(pendingRoll > 0 ? "scal-roll-in-up" : "scal-roll-in-down");
+        pendingRoll = 0;
+      }
+      function rollToMonth(dir) {
+        if (rollTimer) return;
+        const commit = /* @__PURE__ */ __name(() => {
+          rollTimer = 0;
+          pendingRoll = dir;
+          pendingStripEdge = dir > 0 ? "first" : "last";
+          viewDate = new Date(year, month + dir, 1);
+          renderCalendar(container);
+        }, "commit");
+        if (prefersReducedMotion()) {
+          commit();
+          return;
+        }
+        monthText.classList.add(dir > 0 ? "scal-roll-out-up" : "scal-roll-out-down");
+        rollTimer = window.setTimeout(commit, 120);
+      }
+      __name(rollToMonth, "rollToMonth");
       const nextBtn = document.createElement("button");
       nextBtn.className = "scal-nav-btn";
       nextBtn.title = "Next month";
@@ -3701,34 +4003,364 @@ ${report}
       header.appendChild(monthLabel);
       header.appendChild(nextBtn);
       root.appendChild(header);
+      const todayObj = /* @__PURE__ */ new Date();
+      const todayKey = `${todayObj.getFullYear()}-${todayObj.getMonth()}-${todayObj.getDate()}`;
+      const mode = getConfig().style === "strip" ? "strip" : "month";
+      root.classList.toggle("scal-strip-mode", mode === "strip");
       const grid = document.createElement("div");
       grid.className = "scal-grid";
-      for (const d of ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]) {
-        const cell = document.createElement("div");
-        cell.className = "scal-dow";
-        cell.textContent = d;
-        grid.appendChild(cell);
+      const dowTitle = mode === "strip" ? "Switch to the month grid" : "Switch to the week strip";
+      grid.addEventListener("click", (ev) => {
+        const hit = ev.target instanceof Element ? ev.target.closest(".scal-dow") : null;
+        if (!hit) return;
+        setStyle(mode === "strip" ? "month" : "strip");
+      });
+      const cells = monthCells(year, month, todayKey, container);
+      let goToToday = null;
+      monthLabel.classList.add("scal-month-label--jump");
+      monthLabel.title = "Jump to today";
+      monthLabel.addEventListener("click", () => {
+        const now = /* @__PURE__ */ new Date();
+        if (now.getFullYear() === year && now.getMonth() === month) {
+          if (goToToday) goToToday(true);
+          return;
+        }
+        viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        renderCalendar(container);
+      });
+      if (mode === "strip") {
+        goToToday = buildStrip(grid, cells, rollToMonth, dowTitle);
+      } else {
+        for (const d of DOW_LABELS) {
+          const cell = document.createElement("div");
+          cell.className = "scal-dow";
+          cell.textContent = d;
+          cell.title = dowTitle;
+          grid.appendChild(cell);
+        }
+        for (const cell of cells) grid.appendChild(cell);
       }
+      root.appendChild(grid);
+      animateStyleSwap(grid);
+      syncSelectedDay();
+      lastRenderedStyle = mode;
+    }
+    __name(renderCalendar, "renderCalendar");
+    function animateStyleSwap(grid) {
+      const from = swapFromHeight;
+      swapFromHeight = null;
+      if (from == null || prefersReducedMotion()) return;
+      requestAnimationFrame(() => {
+        if (!grid.isConnected) return;
+        const to = grid.getBoundingClientRect().height;
+        if (!to || Math.abs(to - from) < 1) return;
+        grid.style.overflow = "hidden";
+        grid.style.height = `${from}px`;
+        void grid.offsetHeight;
+        grid.style.transition = "height 180ms ease";
+        grid.style.height = `${to}px`;
+        const done = /* @__PURE__ */ __name(() => {
+          window.clearTimeout(failsafe);
+          grid.removeEventListener("transitionend", done);
+          grid.style.removeProperty("height");
+          grid.style.removeProperty("overflow");
+          grid.style.removeProperty("transition");
+        }, "done");
+        const failsafe = window.setTimeout(done, 400);
+        grid.addEventListener("transitionend", done);
+      });
+    }
+    __name(animateStyleSwap, "animateStyleSwap");
+    function monthCells(year, month, todayKey, container) {
+      const cells = [];
       const firstDayRaw = new Date(year, month, 1).getDay();
       const firstDay = (firstDayRaw + 6) % 7;
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       const daysInPrevMonth = new Date(year, month, 0).getDate();
-      const todayObj = /* @__PURE__ */ new Date();
-      const todayKey = `${todayObj.getFullYear()}-${todayObj.getMonth()}-${todayObj.getDate()}`;
       for (let i = firstDay - 1; i >= 0; i--) {
-        grid.appendChild(makeCell(daysInPrevMonth - i, month - 1, year, todayKey, true, container));
+        cells.push(makeCell(daysInPrevMonth - i, month - 1, year, todayKey, true, container));
       }
       for (let d = 1; d <= daysInMonth; d++) {
-        grid.appendChild(makeCell(d, month, year, todayKey, false, container));
+        cells.push(makeCell(d, month, year, todayKey, false, container));
       }
       const trailing = (firstDay + daysInMonth) % 7;
       const trailingCount = trailing === 0 ? 0 : 7 - trailing;
       for (let d = 1; d <= trailingCount; d++) {
-        grid.appendChild(makeCell(d, month + 1, year, todayKey, true, container));
+        cells.push(makeCell(d, month + 1, year, todayKey, true, container));
       }
-      root.appendChild(grid);
+      return cells;
     }
-    __name(renderCalendar, "renderCalendar");
+    __name(monthCells, "monthCells");
+    function buildStrip(grid, cells, rollToMonth, dowTitle) {
+      const strip = document.createElement("div");
+      strip.className = "scal-strip";
+      let todayIndex = -1;
+      cells.forEach((cell, i) => {
+        const col = document.createElement("div");
+        col.className = "scal-daycol";
+        const dow = document.createElement("div");
+        dow.className = "scal-dow";
+        dow.textContent = DOW_LABELS[i % 7];
+        dow.title = dowTitle;
+        col.appendChild(dow);
+        col.appendChild(cell);
+        strip.appendChild(col);
+        if (cell.classList.contains("today")) todayIndex = i;
+      });
+      const restingIndex = todayIndex >= 0 ? Math.max(0, todayIndex - 1) : -1;
+      const maxIndex = Math.max(cells.length - 7, 0);
+      function dayWidth() {
+        return strip.clientWidth / 7;
+      }
+      __name(dayWidth, "dayWidth");
+      function nearestIndex() {
+        const w = dayWidth();
+        if (!w) return 0;
+        return Math.min(Math.round(strip.scrollLeft / w), maxIndex);
+      }
+      __name(nearestIndex, "nearestIndex");
+      let shownIndex = pendingStripEdge === "first" ? 0 : pendingStripEdge === "last" ? maxIndex : restingIndex >= 0 ? restingIndex : 0;
+      pendingStripEdge = null;
+      function goToIndex(index, smooth) {
+        if (!strip.isConnected || !strip.clientWidth) return;
+        const clamped = Math.min(Math.max(index, 0), maxIndex);
+        shownIndex = clamped;
+        const left = clamped * dayWidth();
+        if (Math.abs(strip.scrollLeft - left) <= 1) return;
+        if (smooth && !prefersReducedMotion()) {
+          strip.scrollTo({ left, behavior: "smooth" });
+        } else {
+          strip.scrollLeft = left;
+        }
+      }
+      __name(goToIndex, "goToIndex");
+      function goToToday(smooth) {
+        if (restingIndex < 0) return;
+        goToIndex(restingIndex, smooth);
+      }
+      __name(goToToday, "goToToday");
+      function scheduleIdleReturn() {
+        if (stripIdleTimer) {
+          clearTimeout(stripIdleTimer);
+          stripIdleTimer = 0;
+        }
+        if (restingIndex < 0 || !getConfig().returnToToday) return;
+        stripIdleTimer = window.setTimeout(() => {
+          stripIdleTimer = 0;
+          goToToday(true);
+        }, IDLE_RETURN_MS);
+      }
+      __name(scheduleIdleReturn, "scheduleIdleReturn");
+      let settleTimer = 0;
+      function scheduleSettle(delay) {
+        if (settleTimer) clearTimeout(settleTimer);
+        settleTimer = window.setTimeout(() => {
+          settleTimer = 0;
+          if (drag) return;
+          goToIndex(nearestIndex(), true);
+        }, delay);
+      }
+      __name(scheduleSettle, "scheduleSettle");
+      let fadeLeft = false;
+      let fadeRight = false;
+      function syncFades() {
+        const max = strip.scrollWidth - strip.clientWidth;
+        const left = strip.scrollLeft > 1;
+        const right = max > 1 && strip.scrollLeft < max - 1;
+        if (left !== fadeLeft) {
+          fadeLeft = left;
+          strip.toggleAttribute("data-can-left", left);
+        }
+        if (right !== fadeRight) {
+          fadeRight = right;
+          strip.toggleAttribute("data-can-right", right);
+        }
+      }
+      __name(syncFades, "syncFades");
+      strip.addEventListener("scroll", () => {
+        shownIndex = nearestIndex();
+        syncFades();
+        scheduleSettle(SETTLE_MS);
+        scheduleIdleReturn();
+      }, { passive: true });
+      strip.addEventListener("pointerleave", () => {
+        if (drag) return;
+        scheduleSettle(150);
+      });
+      let edgePush = 0;
+      let edgeDir = 0;
+      let edgeDecay = 0;
+      function atStart() {
+        return strip.scrollLeft <= 1;
+      }
+      __name(atStart, "atStart");
+      function atEnd() {
+        return strip.scrollLeft >= strip.scrollWidth - strip.clientWidth - 1;
+      }
+      __name(atEnd, "atEnd");
+      function atEdge(dir) {
+        return dir > 0 ? atEnd() : atStart();
+      }
+      __name(atEdge, "atEdge");
+      function pushEdge(dir, amount) {
+        if (!atEdge(dir)) {
+          edgePush = 0;
+          edgeDir = 0;
+          return false;
+        }
+        if (dir !== edgeDir) {
+          edgePush = 0;
+          edgeDir = dir;
+        }
+        edgePush += Math.abs(amount);
+        if (edgeDecay) clearTimeout(edgeDecay);
+        edgeDecay = window.setTimeout(() => {
+          edgePush = 0;
+          edgeDir = 0;
+          edgeDecay = 0;
+        }, 400);
+        if (edgePush < EDGE_PUSH_PX) return false;
+        edgePush = 0;
+        edgeDir = 0;
+        rollToMonth(dir);
+        return true;
+      }
+      __name(pushEdge, "pushEdge");
+      let wheelTarget = null;
+      let wheelSettle = 0;
+      let wheelAccum = 0;
+      let wheelDir = 0;
+      let wheelDecay = 0;
+      let lastStepAt = 0;
+      function stepDay(dir) {
+        const base = wheelTarget == null ? nearestIndex() : wheelTarget;
+        wheelTarget = Math.min(Math.max(base + dir, 0), maxIndex);
+        goToIndex(wheelTarget, true);
+        if (wheelSettle) clearTimeout(wheelSettle);
+        wheelSettle = window.setTimeout(() => {
+          wheelTarget = null;
+          wheelSettle = 0;
+        }, 260);
+      }
+      __name(stepDay, "stepDay");
+      strip.addEventListener("wheel", (ev) => {
+        const horizontal = Math.abs(ev.deltaX) > Math.abs(ev.deltaY);
+        const raw = horizontal ? ev.deltaX : ev.deltaY;
+        if (!raw) return;
+        const detent = ev.deltaMode !== 0 || Math.abs(raw) >= 40;
+        if (!horizontal && !ev.shiftKey && !detent) return;
+        ev.preventDefault();
+        const dir = raw > 0 ? 1 : -1;
+        if (atEdge(dir)) {
+          pushEdge(dir, raw);
+          return;
+        }
+        if (dir !== wheelDir) {
+          wheelAccum = 0;
+          wheelDir = dir;
+        }
+        wheelAccum += Math.abs(raw);
+        if (wheelDecay) clearTimeout(wheelDecay);
+        wheelDecay = window.setTimeout(() => {
+          wheelAccum = 0;
+          wheelDir = 0;
+          wheelDecay = 0;
+        }, 200);
+        if (wheelAccum < WHEEL_STEP_PX) return;
+        const now = Date.now();
+        if (now - lastStepAt < STEP_MIN_MS) return;
+        lastStepAt = now;
+        wheelAccum = 0;
+        stepDay(dir);
+      }, { passive: false });
+      let touchX = 0;
+      let touchRolled = false;
+      strip.addEventListener("touchstart", (ev) => {
+        if (ev.touches.length !== 1) return;
+        touchX = ev.touches[0].clientX;
+        touchRolled = false;
+        edgePush = 0;
+        edgeDir = 0;
+      }, { passive: true });
+      strip.addEventListener("touchmove", (ev) => {
+        if (touchRolled || ev.touches.length !== 1) return;
+        const x = ev.touches[0].clientX;
+        const dx = touchX - x;
+        touchX = x;
+        if (!dx) return;
+        if (pushEdge(dx > 0 ? 1 : -1, dx)) touchRolled = true;
+      }, { passive: true });
+      let drag = null;
+      let swallowClick = false;
+      strip.addEventListener("click", (ev) => {
+        if (!swallowClick) return;
+        swallowClick = false;
+        ev.preventDefault();
+        ev.stopPropagation();
+      }, true);
+      strip.addEventListener("pointerdown", (ev) => {
+        if (ev.pointerType === "touch" || ev.button !== 0) return;
+        drag = { id: ev.pointerId, x: ev.clientX, scroll: strip.scrollLeft, active: false, rolled: false };
+      });
+      strip.addEventListener("pointermove", (ev) => {
+        if (!drag || ev.pointerId !== drag.id) return;
+        const dx = ev.clientX - drag.x;
+        if (!drag.active) {
+          if (Math.abs(dx) < DRAG_THRESHOLD) return;
+          drag.active = true;
+          swallowClick = true;
+          strip.classList.add("scal-strip-dragging");
+          try {
+            strip.setPointerCapture(drag.id);
+          } catch {
+          }
+        }
+        const wanted = drag.scroll - dx;
+        strip.scrollLeft = wanted;
+        if (drag.rolled) return;
+        const max = strip.scrollWidth - strip.clientWidth;
+        const over = wanted < 0 ? -wanted : wanted > max ? wanted - max : 0;
+        if (over >= EDGE_PUSH_PX) {
+          drag.rolled = true;
+          rollToMonth(wanted < 0 ? -1 : 1);
+        }
+      });
+      const endDrag = /* @__PURE__ */ __name((ev) => {
+        if (!drag || ev.pointerId !== drag.id) return;
+        const wasDrag = drag.active;
+        const rolled = drag.rolled;
+        if (wasDrag) {
+          try {
+            strip.releasePointerCapture(drag.id);
+          } catch {
+          }
+          strip.classList.remove("scal-strip-dragging");
+        }
+        drag = null;
+        if (wasDrag && !rolled) scheduleSettle(350);
+      }, "endDrag");
+      strip.addEventListener("pointerup", endDrag);
+      strip.addEventListener("pointercancel", endDrag);
+      if (typeof ResizeObserver === "function") {
+        stripResizeObserver = new ResizeObserver(() => {
+          if (drag || !strip.clientWidth) return;
+          const index = restingIndex >= 0 ? restingIndex : shownIndex;
+          const left = Math.min(Math.max(index, 0), maxIndex) * dayWidth();
+          if (Math.abs(strip.scrollLeft - left) > 1) strip.scrollLeft = left;
+          shownIndex = index;
+          syncFades();
+        });
+        stripResizeObserver.observe(strip);
+      }
+      grid.appendChild(strip);
+      requestAnimationFrame(() => {
+        if (!strip.isConnected) return;
+        goToIndex(shownIndex, false);
+        syncFades();
+      });
+      return goToToday;
+    }
+    __name(buildStrip, "buildStrip");
     function makeCell(day, month, year, todayKey, isOtherMonth, container) {
       const date = new Date(year, month, day);
       const ry = date.getFullYear();
@@ -3737,6 +4369,7 @@ ${report}
       const key = `${ry}-${rm}-${rd}`;
       const cell = document.createElement("div");
       cell.className = "scal-day";
+      cell.setAttribute("data-key", key);
       if (isOtherMonth) cell.classList.add("other-month");
       if (key === todayKey) cell.classList.add("today");
       cell.textContent = String(rd);
@@ -3747,8 +4380,10 @@ ${report}
         year: "numeric"
       });
       cell.addEventListener("click", () => {
-        viewDate = new Date(ry, rm, 1);
-        renderCalendar(container);
+        if (isOtherMonth && lastRenderedStyle !== "strip") {
+          viewDate = new Date(ry, rm, 1);
+          renderCalendar(container);
+        }
         void openJournal(date);
       });
       return cell;
@@ -3772,13 +4407,32 @@ ${report}
           }
           return;
         }
+        for (const name of ["panel.navigated", "panel.focused", "panel.closed"]) {
+          try {
+            const id = plugin.events.on(name, () => requestAnimationFrame(syncSelectedDay));
+            if (id) panelHandlerIds.push(id);
+          } catch {
+          }
+        }
         widget = plugin.ui.addSidebarWidget((container) => {
+          pendingRoll = 0;
+          swapFromHeight = null;
           renderCalendar(container);
           return () => {
           };
         });
       },
       unmount() {
+        stopStripWatchers();
+        while (panelHandlerIds.length) {
+          const id = panelHandlerIds.pop();
+          try {
+            plugin.events.off(id);
+          } catch {
+          }
+        }
+        lastContainer = null;
+        lastRenderedStyle = null;
         if (!widget) return;
         try {
           widget.remove();
@@ -3788,6 +4442,43 @@ ${report}
       },
       isMounted() {
         return !!widget;
+      },
+      /**
+       * Re-render after a style change. A no-op when the style is unchanged, so
+       * editing an unrelated option never resets the strip's scroll position.
+       */
+      refresh() {
+        if (!widget) return;
+        const next = getConfig().style;
+        if (next === lastRenderedStyle) return;
+        if (lastContainer && lastContainer.isConnected) {
+          const container = lastContainer;
+          const swap = /* @__PURE__ */ __name(() => {
+            const oldGrid = container.querySelector(".scal-grid");
+            swapFromHeight = oldGrid instanceof HTMLElement ? oldGrid.getBoundingClientRect().height : null;
+            renderCalendar(container);
+          }, "swap");
+          const strip = container.querySelector(".scal-strip");
+          if (next === "month" && strip instanceof HTMLElement && strip.clientWidth && !prefersReducedMotion()) {
+            const dayW = strip.clientWidth / 7;
+            const aligned = Math.round(strip.scrollLeft / (dayW * 7)) * dayW * 7;
+            if (Math.abs(strip.scrollLeft - aligned) > 1) {
+              strip.scrollTo({ left: aligned, behavior: "smooth" });
+              if (rollTimer) clearTimeout(rollTimer);
+              rollTimer = window.setTimeout(() => {
+                rollTimer = 0;
+                swap();
+              }, 200);
+              return;
+            }
+          }
+          swap();
+          return;
+        }
+        try {
+          widget.refresh();
+        } catch {
+        }
       }
     };
   }
@@ -3796,6 +4487,7 @@ ${report}
   // options.js
   var BODY_SCOPE_CLASS = "plg-sidebar-tweaks";
   var TAG_ROW_ATTR = "data-plg-st-tag";
+  var COLL_CHILD_ATTR = "data-plg-st-coll-child";
   var SEPARATOR_ROW_ATTR = "data-plg-sidebar-separator";
   var SEPARATOR_ROW_ATTR_LEGACY = "data-plg-sidebar-seperator";
   var NOT_SEPARATOR = `:not([${SEPARATOR_ROW_ATTR}="1"]):not([${SEPARATOR_ROW_ATTR_LEGACY}="1"])`;
@@ -3830,6 +4522,7 @@ ${report}
     hideJump: false,
     hideQuickAdd: false,
     hideNewPage: false,
+    hideTasks: false,
     hideCollectionOptionMenus: false,
     hideWorkspaceSwitcher: false,
     hideCollapsedChevron: false,
@@ -3843,6 +4536,13 @@ ${report}
     pinTagsToBottom: false,
     // Sidebar calendar widget by Dave (@gitdaveuk) — see calendar-widget.js.
     showCalendar: false,
+    // Calendar style per form factor. Two keys, not one: `pushToAll` copies concrete
+    // values into every device slot, so a single key with a device-dependent default
+    // would be clobbered by the first push from either kind of device.
+    calendarStyleDesktop: "month",
+    calendarStyleMobile: "strip",
+    // Strip only: drift back to today after the user stops scrolling it.
+    calendarReturnToToday: true,
     // Layout toggles
     fixPanelAnimation: true,
     // Tuned layout — spacing moved from css-global into plugin panel
@@ -3870,6 +4570,7 @@ ${report}
       "hideJump",
       "hideQuickAdd",
       "hideNewPage",
+      "hideTasks",
       "hideCollectionOptionMenus",
       "hideWorkspaceSwitcher",
       "hideCollapsedChevron",
@@ -3877,6 +4578,7 @@ ${report}
       "emptySidebarClick",
       "pinTagsToBottom",
       "showCalendar",
+      "calendarReturnToToday",
       "fixPanelAnimation"
     ]
   );
@@ -3886,6 +4588,17 @@ ${report}
       "renameCollections",
       "renameTags",
       "renameTrash"
+    ]
+  );
+  var CALENDAR_STYLES = (
+    /** @type {const} */
+    ["month", "strip"]
+  );
+  var ENUM_KEYS = (
+    /** @type {const} */
+    [
+      "calendarStyleDesktop",
+      "calendarStyleMobile"
     ]
   );
   var RENAME_GUIDS = Object.freeze({
@@ -3937,6 +4650,10 @@ ${report}
     hideJump: {
       label: "Jump",
       selectors: [`${SIDEBAR_SCOPE} [data-guid="id-jump"]`]
+    },
+    hideTasks: {
+      label: "Tasks",
+      selectors: [`${SIDEBAR_SCOPE} [data-guid="id-tasks"]`]
     },
     // Mobile-first sidebar-top rows (probed on iPhone 2026-07-13): Quick Add is
     // mobile-only chrome; "New page in…" (id-new) can appear on desktop too.
@@ -3996,6 +4713,15 @@ ${report}
       const raw2 = migrated[key];
       out[key] = typeof raw2 === "string" ? raw2.slice(0, 60) : "";
     }
+    for (const key of ENUM_KEYS) {
+      const def = (
+        /** @type {string} */
+        DEFAULT_OPTIONS[key]
+      );
+      const raw2 = migrated[key];
+      out[key] = typeof raw2 === "string" && /** @type {readonly string[]} */
+      CALENDAR_STYLES.includes(raw2) ? raw2 : def;
+    }
     for (const key of TUNED_KEYS) {
       const def = (
         /** @type {TunedOption} */
@@ -4030,6 +4756,20 @@ ${report}
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   __name(finiteNumber, "finiteNumber");
+  function calendarStyleKey() {
+    try {
+      const device = document.documentElement.getAttribute("data-device");
+      if (device) return device === "mobile" ? "calendarStyleMobile" : "calendarStyleDesktop";
+      return window.matchMedia("(max-width: 768px)").matches ? "calendarStyleMobile" : "calendarStyleDesktop";
+    } catch {
+      return "calendarStyleDesktop";
+    }
+  }
+  __name(calendarStyleKey, "calendarStyleKey");
+  function resolveCalendarStyle(options) {
+    return options[calendarStyleKey()] === "strip" ? "strip" : "month";
+  }
+  __name(resolveCalendarStyle, "resolveCalendarStyle");
   function hideSidebarGuid(lines, scope, guid) {
     lines.push(`${scope} ${SIDEBAR_SCOPE} [data-guid="${guid}"] { display: none !important; }`);
   }
@@ -4042,6 +4782,11 @@ ${report}
       emitCollectionsHeaderHide(lines, scope);
       lines.push(
         `${scope} .sidebar--icons .sidebar-item-collection:not([data-guid^="trashed-"]) {`,
+        `display: none !important;`,
+        `}`,
+        // An expanded collection's records are siblings of its row, not
+        // children of it — hiding the row alone leaves them behind.
+        `${scope} .sidebar--icons [${COLL_CHILD_ATTR}="1"] {`,
         `display: none !important;`,
         `}`
       );
@@ -4069,6 +4814,7 @@ ${report}
     }
     emitCollapsedTogglerRules(lines, desktopScope, options);
     if (options.hideJump) hideSidebarGuid(lines, scope, "id-jump");
+    if (options.hideTasks) hideSidebarGuid(lines, scope, "id-tasks");
     if (options.hideQuickAdd) hideSidebarGuid(lines, scope, "id-quick-add");
     if (options.hideNewPage) hideSidebarGuid(lines, scope, "id-new");
     if (options.hideSearch) {
@@ -4601,6 +5347,32 @@ ${report}
     }
   }
   __name(clearPinTagsLayout, "clearPinTagsLayout");
+  function markCollectionChildRows(active) {
+    document.querySelectorAll(`.sidebar--icons [${COLL_CHILD_ATTR}]`).forEach((node) => {
+      node.removeAttribute(COLL_CHILD_ATTR);
+    });
+    if (!active) return;
+    for (const root of document.querySelectorAll(".sidebar--icons")) {
+      if (!(root instanceof HTMLElement)) continue;
+      for (const row of root.querySelectorAll(".sidebar-item-collection")) {
+        const guid = row.getAttribute("data-guid") || "";
+        if (guid.startsWith("trashed-")) continue;
+        let cur = row.nextElementSibling;
+        while (cur instanceof HTMLElement) {
+          if (cur.classList.contains("sidebar-item-collection")) break;
+          if (cur.classList.contains("sidebar-item-collsheading")) break;
+          if (cur.classList.contains("sidebar-item-heading")) break;
+          if (cur.classList.contains("scal-root")) break;
+          if (cur.classList.contains("sidebar-widget-container")) break;
+          if (cur.classList.contains("sidebar-item")) {
+            cur.setAttribute(COLL_CHILD_ATTR, "1");
+          }
+          cur = cur.nextElementSibling;
+        }
+      }
+    }
+  }
+  __name(markCollectionChildRows, "markCollectionChildRows");
   function markTagRows() {
     document.querySelectorAll(`.sidebar--icons [${TAG_ROW_ATTR}]`).forEach((node) => {
       node.removeAttribute(TAG_ROW_ATTR);
@@ -4631,7 +5403,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.3.12";
+  var PLUGIN_VERSION = "1.6.1";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -4657,6 +5429,12 @@ ${report}
 	border-color: var(--tps-accent, var(--accent-color, currentColor));
 }
 .${ROOT_CLASS}-panel .tps-text-input::placeholder { color: var(--text-muted, rgba(127,127,127,0.6)); }
+/* Style pickers nested under Show calendar: the group is already indented, so
+   drop the option row's own hover gutter. */
+.${ROOT_CLASS}-panel .${ROOT_CLASS}__calendar-group .tps-opt-group__value .tps-opt {
+	margin: 0;
+	padding: 3px 0;
+}
 `;
   var SIDEBAR_CHROME_SELECTOR = ".sidebar--top, .sidebar--body, .sidebar--icons";
   var NON_EMPTY_SELECTOR = [
@@ -4776,7 +5554,16 @@ ${report}
     /** Kill switch: true = plugin loaded but all sidebar effects off. */
     _disabled = false;
     /** Sidebar calendar widget (by @gitdaveuk) — see calendar-widget.js. */
-    _calendarWidget = createCalendarWidget(this);
+    _calendarWidget = createCalendarWidget(
+      this,
+      () => ({
+        style: resolveCalendarStyle(this._options),
+        returnToToday: !!this._options.calendarReturnToToday
+      }),
+      // Clicking the weekday letters switches style for THIS device's form
+      // factor, and saves it — the same key the settings panel edits.
+      (style) => this._setEnum(calendarStyleKey(), style)
+    );
     /** @type {string | null} */
     _calendarReloadHandlerId = null;
     onLoad() {
@@ -4846,6 +5633,7 @@ ${report}
       this._calendarReloadHandlerId = this.events.on("reload", () => this._syncCalendarWidget());
       this._observer = new MutationObserver((mutations) => {
         markTagRows();
+        markCollectionChildRows(!!this._options.hideCollections);
         this._applyHeadingRenames();
         if (this._hideCollectionsHeaderActive() && !this._tagsSidebarTransitionLock) {
           this._debouncedCollectionRestore();
@@ -4869,6 +5657,7 @@ ${report}
       this._initAvatarGuard();
       this._applyOptions();
       markTagRows();
+      markCollectionChildRows(!!this._options.hideCollections);
     }
     /**
      * Whether the avatar lock is active (mirrors emitLockAvatarRules gating).
@@ -5058,6 +5847,7 @@ ${report}
       this._syncCalendarWidget();
       this._applyHeadingRenames();
       markTagRows();
+      markCollectionChildRows(!this._disabled && !!this._options.hideCollections);
       if (this._hideCollectionsHeaderActive()) {
         for (const root of document.querySelectorAll(".sidebar--icons")) {
           if (root instanceof HTMLElement && !isTagsSectionExpanded(root)) {
@@ -5075,6 +5865,7 @@ ${report}
     _syncCalendarWidget() {
       if (this._calendarActive()) {
         this._calendarWidget.mount();
+        this._calendarWidget.refresh();
       } else {
         this._calendarWidget.unmount();
       }
@@ -5405,6 +6196,16 @@ ${report}
       this._applyOptions();
       this._refreshScopePill();
     }
+    /**
+     * @param {'calendarStyleDesktop'|'calendarStyleMobile'} key
+     * @param {string} value
+     */
+    _setEnum(key, value) {
+      this._options = /** @type {SidebarTweaksOptions} */
+      this._settingsStore.update({ [key]: value }).settings;
+      this._applyOptions();
+      this._renderPanel();
+    }
     async _openPanel() {
       if (this._panelEl && document.contains(this._panelEl)) return;
       const active = this.ui.getActivePanel && this.ui.getActivePanel();
@@ -5500,6 +6301,18 @@ ${report}
           checked: !!this._options.hideJump,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideJump",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
+          name: "hideTasks",
+          label: "Hide Tasks",
+          desc: "Hides the Tasks row from the sidebar top shortcuts.",
+          checked: !!this._options.hideTasks,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "hideTasks",
             /** @type {HTMLInputElement} */
             e.target.checked
           ), "onChange")
@@ -5688,19 +6501,68 @@ ${report}
             e.target.checked
           ), "onChange")
         }),
+        this._calendarRows()
+      ];
+    }
+    /** Calendar toggle, plus the per-device style pickers it reveals. */
+    _calendarRows() {
+      const rows = [
         optionRow({
           type: "checkbox",
           name: "showCalendar",
           label: "Show calendar",
-          desc: "Adds a month calendar to the sidebar \u2014 click a day to open its Journal. Calendar by Dave (@gitdaveuk): github.com/gitdaveuk/thymer-sidebar-calendar. Disable the standalone Sidebar Calendar plugin to avoid duplicates.",
+          desc: "Adds a calendar to the sidebar \u2014 click a day to open its Journal. Month is the full grid; Strip is a single scrollable row of days, which fits a narrow mobile sidebar where the grid does not. Calendar by Dave (@gitdaveuk): github.com/gitdaveuk/thymer-sidebar-calendar. Disable the standalone Sidebar Calendar plugin to avoid duplicates.",
           checked: !!this._options.showCalendar,
-          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
-            "showCalendar",
-            /** @type {HTMLInputElement} */
-            e.target.checked
-          ), "onChange")
+          onChange: /* @__PURE__ */ __name((e) => {
+            this._setToggle(
+              "showCalendar",
+              /** @type {HTMLInputElement} */
+              e.target.checked
+            );
+            this._renderPanel();
+          }, "onChange")
         })
       ];
+      if (this._options.showCalendar) {
+        rows.push(h(
+          "div",
+          { class: "tps-opt-group__value" },
+          this._calendarStyleRow("Desktop style", "calendarStyleDesktop"),
+          this._calendarStyleRow("Mobile style", "calendarStyleMobile"),
+          optionRow({
+            type: "checkbox",
+            name: "calendarReturnToToday",
+            label: "Strip returns to today",
+            desc: "After 10 seconds without scrolling, the strip slides back to centre today. Only while it is showing the current month \u2014 a month you navigated to stays put.",
+            checked: !!this._options.calendarReturnToToday,
+            onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+              "calendarReturnToToday",
+              /** @type {HTMLInputElement} */
+              e.target.checked
+            ), "onChange")
+          })
+        ));
+      }
+      return h("div", { class: `tps-opt-group ${ROOT_CLASS}__calendar-group` }, rows);
+    }
+    /**
+     * @param {string} label
+     * @param {'calendarStyleDesktop'|'calendarStyleMobile'} key
+     */
+    _calendarStyleRow(label, key) {
+      return h(
+        "div",
+        { class: "tps-opt tps-opt--text" },
+        h("span", { class: "tps-opt-label" }, label),
+        tabs({
+          options: [
+            { value: "month", label: "Month" },
+            { value: "strip", label: "Strip" }
+          ],
+          value: this._options[key],
+          onChange: /* @__PURE__ */ __name((v) => this._setEnum(key, String(v)), "onChange")
+        })
+      );
     }
     _layoutToggleRows() {
       return [
