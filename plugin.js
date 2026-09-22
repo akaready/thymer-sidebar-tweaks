@@ -3855,7 +3855,9 @@ ${report}
          fonts, heights and 7 equal columns, so toggling styles changes which
          weeks are visible and nothing else. */
 
-      /* One week needs far less room underneath than six. */
+      /* One week needs far less room underneath than six. The gap below comes
+         from the collections heading's own margin, which survives even when
+         that heading is hidden \u2014 see emitHideCollectionsHeaderRules. */
       .scal-root.scal-strip-mode {
         padding-bottom: 0;
       }
@@ -4962,7 +4964,20 @@ ${report}
   }
   __name(emitCollectionsHeaderHide, "emitCollectionsHeaderHide");
   function emitHideCollectionsHeaderRules(lines, scope) {
-    emitCollectionsHeaderHide(lines, scope);
+    const root = `${scope} .sidebar--icons`;
+    lines.push(
+      `${root} [data-guid="${COLLECTIONS_HEADER_GUID}"][data-guid="${COLLECTIONS_HEADER_GUID}"],`,
+      `${root} .sidebar-item-collsheading.sidebar-item-collsheading {`,
+      `height: 0 !important;`,
+      `min-height: 0 !important;`,
+      `padding-top: 0 !important;`,
+      `padding-bottom: 0 !important;`,
+      `margin-bottom: 0 !important;`,
+      `border: 0 !important;`,
+      `overflow: hidden !important;`,
+      `pointer-events: none !important;`,
+      `}`
+    );
   }
   __name(emitHideCollectionsHeaderRules, "emitHideCollectionsHeaderRules");
   function emitPinTagsRules(lines, scope, options) {
@@ -5403,7 +5418,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.6.1";
+  var PLUGIN_VERSION = "1.6.3";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
