@@ -35,7 +35,7 @@ Enjoy! 🙏
 
 ### Show/hide items
 
-Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Tasks, Collections, collection option menus, Tags, Trash. Hiding Collections takes the records of any expanded collection with it.
+Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Tasks, Today, Collections, collection option menus, Tags, Trash. Hiding Collections takes the records of any expanded collection with it.
 
 ### Behavior
 

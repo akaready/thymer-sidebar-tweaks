@@ -4011,7 +4011,7 @@ ${report}
       root.classList.toggle("scal-strip-mode", mode === "strip");
       const grid = document.createElement("div");
       grid.className = "scal-grid";
-      const dowTitle = mode === "strip" ? "Switch to the month grid" : "Switch to the week strip";
+      const dowTitle = mode === "strip" ? "Switch to the month grid" : "Switch to the day strip";
       grid.addEventListener("click", (ev) => {
         const hit = ev.target instanceof Element ? ev.target.closest(".scal-dow") : null;
         if (!hit) return;
@@ -4525,6 +4525,7 @@ ${report}
     hideQuickAdd: false,
     hideNewPage: false,
     hideTasks: false,
+    hideToday: false,
     hideCollectionOptionMenus: false,
     hideWorkspaceSwitcher: false,
     hideCollapsedChevron: false,
@@ -4573,6 +4574,7 @@ ${report}
       "hideQuickAdd",
       "hideNewPage",
       "hideTasks",
+      "hideToday",
       "hideCollectionOptionMenus",
       "hideWorkspaceSwitcher",
       "hideCollapsedChevron",
@@ -4621,6 +4623,7 @@ ${report}
     ]
   );
   var SIDEBAR_SCOPE = ".sidebar";
+  var TODAY_ROW_SELECTOR = '.sidebar-item-option:has(.sidebar-item-icon[data-tooltip="Today"])';
   var SIDEBAR_VISIBILITY_PROBE = {
     hideCollections: {
       label: "Collections section",
@@ -4656,6 +4659,10 @@ ${report}
     hideTasks: {
       label: "Tasks",
       selectors: [`${SIDEBAR_SCOPE} [data-guid="id-tasks"]`]
+    },
+    hideToday: {
+      label: "Today",
+      selectors: [`${SIDEBAR_SCOPE} ${TODAY_ROW_SELECTOR}`]
     },
     // Mobile-first sidebar-top rows (probed on iPhone 2026-07-13): Quick Add is
     // mobile-only chrome; "New page in…" (id-new) can appear on desktop too.
@@ -4817,6 +4824,13 @@ ${report}
     emitCollapsedTogglerRules(lines, desktopScope, options);
     if (options.hideJump) hideSidebarGuid(lines, scope, "id-jump");
     if (options.hideTasks) hideSidebarGuid(lines, scope, "id-tasks");
+    if (options.hideToday) {
+      lines.push(
+        `${scope} ${SIDEBAR_SCOPE} ${TODAY_ROW_SELECTOR} {`,
+        `display: none !important;`,
+        `}`
+      );
+    }
     if (options.hideQuickAdd) hideSidebarGuid(lines, scope, "id-quick-add");
     if (options.hideNewPage) hideSidebarGuid(lines, scope, "id-new");
     if (options.hideSearch) {
@@ -5418,7 +5432,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.6.3";
+  var PLUGIN_VERSION = "1.7.0";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -6288,7 +6302,7 @@ ${report}
           type: "checkbox",
           name: "hideCollapseArrow",
           label: "Hide collapse arrow",
-          desc: "Hides the built-in sidebar expand/collapse arrow (.sidebar--toggler) in both expanded and collapsed states.",
+          desc: "Hides the built-in sidebar expand/collapse arrow, expanded and collapsed.",
           checked: !!this._options.hideCollapseArrow,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideCollapseArrow",
@@ -6328,6 +6342,18 @@ ${report}
           checked: !!this._options.hideTasks,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideTasks",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
+          name: "hideToday",
+          label: "Hide Today",
+          desc: "Hides the Today row from the sidebar top shortcuts.",
+          checked: !!this._options.hideToday,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "hideToday",
             /** @type {HTMLInputElement} */
             e.target.checked
           ), "onChange")
@@ -6396,7 +6422,7 @@ ${report}
           type: "checkbox",
           name: "hideCollapsedChevron",
           label: "Hide chevrons when collapsed",
-          desc: "Hides the expand chevron (.sidebar-item-toggler) that overlays collection icons in the collapsed sidebar.",
+          desc: "Hides the expand chevron that overlays collection icons in the collapsed sidebar.",
           checked: !!this._options.hideCollapsedChevron,
           onChange: /* @__PURE__ */ __name((e) => this._setToggle(
             "hideCollapsedChevron",
@@ -6526,7 +6552,7 @@ ${report}
           type: "checkbox",
           name: "showCalendar",
           label: "Show calendar",
-          desc: "Adds a calendar to the sidebar \u2014 click a day to open its Journal. Month is the full grid; Strip is a single scrollable row of days, which fits a narrow mobile sidebar where the grid does not. Calendar by Dave (@gitdaveuk): github.com/gitdaveuk/thymer-sidebar-calendar. Disable the standalone Sidebar Calendar plugin to avoid duplicates.",
+          desc: "Adds a calendar to the sidebar \u2014 click a day to open its Journal. Calendar by Dave (@gitdaveuk): github.com/gitdaveuk/thymer-sidebar-calendar. Disable the standalone Sidebar Calendar plugin to avoid duplicates.",
           checked: !!this._options.showCalendar,
           onChange: /* @__PURE__ */ __name((e) => {
             this._setToggle(
@@ -6548,7 +6574,7 @@ ${report}
             type: "checkbox",
             name: "calendarReturnToToday",
             label: "Strip returns to today",
-            desc: "After 10 seconds without scrolling, the strip slides back to centre today. Only while it is showing the current month \u2014 a month you navigated to stays put.",
+            desc: "Slides the strip back to today after ten seconds of not scrolling.",
             checked: !!this._options.calendarReturnToToday,
             onChange: /* @__PURE__ */ __name((e) => this._setToggle(
               "calendarReturnToToday",
