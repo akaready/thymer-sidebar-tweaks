@@ -3856,7 +3856,10 @@ ${report}
     __name(stopStripWatchers, "stopStripWatchers");
     function foreignCalendarPresent() {
       for (const el2 of document.querySelectorAll(".scal-root")) {
-        if (!el2.hasAttribute("data-plg-st-cal")) return true;
+        if (el2.hasAttribute("data-plg-st-cal")) continue;
+        if (lastContainer && lastContainer.contains(el2)) continue;
+        if (popupEl && popupEl.contains(el2)) continue;
+        return true;
       }
       return false;
     }
@@ -4567,6 +4570,7 @@ ${report}
       const now = /* @__PURE__ */ new Date();
       const mini = document.createElement("div");
       mini.className = "scal-root scal-mini";
+      mini.setAttribute("data-plg-st-cal", "1");
       mini.style.containerType = "inline-size";
       mini.setAttribute("role", "button");
       mini.tabIndex = 0;
@@ -6022,7 +6026,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.11.3";
+  var PLUGIN_VERSION = "1.11.4";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
