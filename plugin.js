@@ -5646,6 +5646,12 @@ ${report}
     const rowSel = `${scope} .sidebar:not(.sidebar-collapsed) .sidebar--icons .sidebar-item-collection${NOT_SEPARATOR}`;
     const actionsSel = `${rowSel} > div[style*="flex"]`;
     lines.push(
+      `${scope} .sidebar.sidebar-collapsed .sidebar--icons .sidebar-item-collection${NOT_SEPARATOR} {`,
+      `box-sizing: border-box !important;`,
+      `min-height: ${h2}px !important;`,
+      `}`
+    );
+    lines.push(
       `${rowSel} {`,
       `display: flex !important;`,
       `align-items: center !important;`,
@@ -6026,7 +6032,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.11.4";
+  var PLUGIN_VERSION = "1.12.0";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -6872,7 +6878,7 @@ ${report}
             this._tunedRow("collapsedSidebarWidth", "Collapsed sidebar width", "px", "Sets how narrow the sidebar is when collapsed. Collection icons stay clickable; use empty-sidebar click or the collapse arrow to expand."),
             this._tunedRow("expandedSidebarWidth", "Expanded sidebar width", "px", "Sets the expanded sidebar width CSS variable."),
             this._tunedRow("collectionRowGap", "Collection row gap", "px", "Vertical space between collection rows in the sidebar."),
-            this._tunedRow("collectionRowHeight", "Collection row height", "px", "Minimum height of collection rows, including the hover highlight. Normalizes rows that omit the + button (e.g. Journal)."),
+            this._tunedRow("collectionRowHeight", "Collection row height", "px", "Minimum height of collection rows, including the hover highlight. Normalizes rows that omit the + button (e.g. Journal), and holds rows at the same height when the sidebar is collapsed \u2014 otherwise they shrink by the height of the hover buttons."),
             this._tunedRow("chevronOffset", "Offset chevron", "px", "Shifts the collapsed collection chevron on the x-axis: negative = left, positive = right. (No effect while \u201CHide chevrons when collapsed\u201D is on.)"),
             this._tunedRow("contextMenuWidth", "Right-click context menu width", "px", "Widens the inline command palette opened from sidebar right-click.")
           ]
