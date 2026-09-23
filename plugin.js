@@ -5574,6 +5574,11 @@ ${report}
   function emitHideCollectionsHeaderRules(lines, scope) {
     const root = `${scope} .sidebar--icons`;
     lines.push(
+      `${scope} .sidebar.sidebar-collapsed .sidebar--top {`,
+      `padding-bottom: 5px !important;`,
+      `}`
+    );
+    lines.push(
       `${root} [data-guid="${COLLECTIONS_HEADER_GUID}"][data-guid="${COLLECTIONS_HEADER_GUID}"],`,
       `${root} .sidebar-item-collsheading.sidebar-item-collsheading {`,
       `height: 0 !important;`,
@@ -6032,7 +6037,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.12.0";
+  var PLUGIN_VERSION = "1.12.1";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
