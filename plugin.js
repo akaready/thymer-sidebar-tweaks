@@ -2178,6 +2178,102 @@ ${report}
   }
   __name(openFeedbackDialog, "openFeedbackDialog");
 
+  // ../../shared/keybindings.js
+  var MOD_KEYS = /* @__PURE__ */ new Set(["Control", "Shift", "Alt", "Meta"]);
+  function keyFromCode(e) {
+    const code = String(e.code || "");
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    return "";
+  }
+  __name(keyFromCode, "keyFromCode");
+  function keyFromKey(e) {
+    let key = String(e.key || "");
+    if (key === " ") return "Space";
+    if (key.length === 1) key = key.toUpperCase();
+    return key;
+  }
+  __name(keyFromKey, "keyFromKey");
+  function eventToCombo(e) {
+    if (MOD_KEYS.has(e.key)) return null;
+    const parts = [];
+    if (e.ctrlKey) parts.push("Ctrl");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    if (e.metaKey) parts.push("Meta");
+    const byKey = keyFromKey(e);
+    const byCode = keyFromCode(e);
+    const key = e.altKey && byCode && !/^[A-Z0-9]$/.test(byKey) ? byCode : byKey || byCode;
+    if (!key) return null;
+    parts.push(key);
+    return parts.join("+");
+  }
+  __name(eventToCombo, "eventToCombo");
+  function parseCombo(combo) {
+    const parts = String(combo || "").split("+").map((p) => p.trim()).filter(Boolean);
+    const out = { ctrl: false, alt: false, shift: false, meta: false, key: "" };
+    for (const p of parts) {
+      const lower = p.toLowerCase();
+      if (lower === "ctrl" || lower === "control") out.ctrl = true;
+      else if (lower === "alt" || lower === "option") out.alt = true;
+      else if (lower === "shift") out.shift = true;
+      else if (lower === "meta" || lower === "cmd" || lower === "command") out.meta = true;
+      else out.key = p;
+    }
+    if (out.key === " ") out.key = "Space";
+    if (out.key.length === 1) out.key = out.key.toUpperCase();
+    return out;
+  }
+  __name(parseCombo, "parseCombo");
+  function comboMatches(e, m) {
+    if (!m.key) return false;
+    if (!!e.ctrlKey !== m.ctrl) return false;
+    if (!!e.altKey !== m.alt) return false;
+    if (!!e.shiftKey !== m.shift) return false;
+    if (!!e.metaKey !== m.meta) return false;
+    return keyFromKey(e) === m.key || keyFromCode(e) !== "" && keyFromCode(e) === m.key;
+  }
+  __name(comboMatches, "comboMatches");
+  function isMacPlatform() {
+    try {
+      const p = String(navigator.platform || "") + " " + String(navigator.userAgent || "");
+      return /Mac|iPhone|iPad|iPod/i.test(p);
+    } catch {
+      return false;
+    }
+  }
+  __name(isMacPlatform, "isMacPlatform");
+  var MAC_GLYPHS = { ctrl: "\u2303", alt: "\u2325", shift: "\u21E7", meta: "\u2318" };
+  var KEY_GLYPHS = {
+    ArrowLeft: "\u2190",
+    ArrowRight: "\u2192",
+    ArrowUp: "\u2191",
+    ArrowDown: "\u2193",
+    Enter: "\u21A9",
+    Escape: "Esc",
+    Backspace: "\u232B",
+    Delete: "\u2326",
+    Tab: "\u21E5",
+    Space: "\u2423"
+  };
+  function formatCombo(combo, opts = {}) {
+    const m = parseCombo(combo);
+    if (!m.key) return opts.placeholder ?? "Unbound";
+    const mac = opts.mac ?? isMacPlatform();
+    const key = KEY_GLYPHS[m.key] || m.key;
+    if (mac) {
+      return (m.ctrl ? MAC_GLYPHS.ctrl : "") + (m.alt ? MAC_GLYPHS.alt : "") + (m.shift ? MAC_GLYPHS.shift : "") + (m.meta ? MAC_GLYPHS.meta : "") + key;
+    }
+    const parts = [];
+    if (m.ctrl) parts.push("Ctrl");
+    if (m.alt) parts.push("Alt");
+    if (m.shift) parts.push("Shift");
+    if (m.meta) parts.push("Win");
+    parts.push(key);
+    return parts.join("+");
+  }
+  __name(formatCombo, "formatCombo");
+
   // ../../shared/settings-ui/helpers.js
   var PANEL_CSS = tokens_default + "\n" + components_default + "\n" + color_field_default;
   function h(tag, props, ...children) {
@@ -2695,6 +2791,79 @@ ${report}
     return numEl;
   }
   __name(numberRow, "numberRow");
+  function listRow({ icon, name, controls }) {
+    const ctrlChildren = controls == null ? [] : Array.isArray(controls) ? controls : [controls];
+    return h(
+      "div",
+      { class: "tps-list-row" },
+      h("div", null, icon || null),
+      h("div", { class: "tps-list-name" }, name),
+      h("div", null, ...ctrlChildren)
+    );
+  }
+  __name(listRow, "listRow");
+  function keyRow({ label, desc, combo, onChange, onClear, placeholder }) {
+    const show = /* @__PURE__ */ __name((c) => formatCombo(c, { placeholder }), "show");
+    const chip = h("button", { type: "button", class: "tps-key-chip", "aria-label": `${label} \u2014 click to rebind` }, show(combo));
+    chip.classList.toggle("tps-key-chip--unbound", !combo);
+    let capturing = false;
+    let onCaptureKey = null;
+    const stop = /* @__PURE__ */ __name((commit, next) => {
+      if (!capturing) return;
+      capturing = false;
+      chip.removeAttribute("data-capturing");
+      if (onCaptureKey) {
+        window.removeEventListener("keydown", onCaptureKey, true);
+        onCaptureKey = null;
+      }
+      if (commit) combo = next;
+      chip.textContent = show(combo);
+      chip.classList.toggle("tps-key-chip--unbound", !combo);
+    }, "stop");
+    chip.addEventListener("click", () => {
+      if (capturing) {
+        stop(false, combo);
+        return;
+      }
+      capturing = true;
+      chip.setAttribute("data-capturing", "true");
+      chip.textContent = "Press keys\u2026";
+      onCaptureKey = /* @__PURE__ */ __name((ev) => {
+        if (ev.key === "Escape") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          stop(false, combo);
+          return;
+        }
+        const next = eventToCombo(ev);
+        if (!next) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        stop(true, next);
+        onChange(next);
+      }, "onCaptureKey");
+      window.addEventListener("keydown", onCaptureKey, true);
+    });
+    const controls = [chip];
+    if (onClear) {
+      controls.push(h("button", {
+        type: "button",
+        class: "tps-key-clear",
+        "aria-label": `${label} \u2014 remove shortcut`,
+        title: "Remove shortcut",
+        onClick: /* @__PURE__ */ __name(() => {
+          stop(false, "");
+          combo = "";
+          chip.textContent = show("");
+          chip.classList.add("tps-key-chip--unbound");
+          onClear();
+        }, "onClick")
+      }, "\xD7"));
+    }
+    const name = desc ? h("div", { class: "tps-key-name" }, h("div", null, label), h("div", { class: "tps-key-desc" }, desc)) : label;
+    return listRow({ icon: null, name, controls: h("div", { class: "tps-key-controls" }, ...controls) });
+  }
+  __name(keyRow, "keyRow");
   function tabs({ options, value, onChange, multiSelect = false }) {
     const isActive = /* @__PURE__ */ __name((v) => multiSelect ? Array.isArray(value) && value.includes(v) : value === v, "isActive");
     return h(
@@ -3663,6 +3832,10 @@ ${report}
     let pendingStripEdge = null;
     let swapFromHeight = null;
     const panelHandlerIds = [];
+    let popupEl = null;
+    let popupDismiss = null;
+    let kbdKey = null;
+    let kbdListener = null;
     function stopStripWatchers() {
       if (stripResizeObserver) {
         try {
@@ -3705,14 +3878,215 @@ ${report}
       }
     }
     __name(openJournalKey, "openJournalKey");
-    function syncSelectedDay() {
-      if (!lastContainer || !lastContainer.isConnected) return;
+    function syncSelectedDayIn(scope) {
+      if (!scope || !scope.isConnected) return;
       const key = openJournalKey();
-      for (const cell of lastContainer.querySelectorAll(".scal-day")) {
+      for (const cell of scope.querySelectorAll(".scal-day")) {
         cell.classList.toggle("selected", !!key && cell.getAttribute("data-key") === key);
       }
     }
+    __name(syncSelectedDayIn, "syncSelectedDayIn");
+    function syncSelectedDay() {
+      syncSelectedDayIn(lastContainer);
+      syncSelectedDayIn(popupEl);
+    }
     __name(syncSelectedDay, "syncSelectedDay");
+    function openPopup(anchor) {
+      closePopup();
+      const pop = document.createElement("div");
+      pop.className = "scal-popup";
+      renderCalendar(pop, { popup: true });
+      document.body.appendChild(pop);
+      popupEl = pop;
+      const rect = anchor.getBoundingClientRect();
+      const box = pop.getBoundingClientRect();
+      let inset = 0;
+      try {
+        const cs = getComputedStyle(pop);
+        inset = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.paddingTop) || 0);
+      } catch {
+      }
+      const height = box.height || 300;
+      const wanted = rect.top - inset;
+      pop.style.left = `${Math.round(rect.right + 8)}px`;
+      pop.style.top = `${Math.round(Math.max(8, Math.min(wanted, window.innerHeight - height - 8)))}px`;
+      pop.addEventListener("click", (ev) => {
+        if (ev.target instanceof Element && ev.target.closest(".scal-day")) closePopup();
+      });
+      popupDismiss = /* @__PURE__ */ __name((ev) => {
+        if (ev instanceof KeyboardEvent) {
+          if (ev.key === "Escape") closePopup();
+          return;
+        }
+        const target = ev.target;
+        if (target instanceof Node && (pop.contains(target) || anchor.contains(target))) return;
+        closePopup();
+      }, "popupDismiss");
+      document.addEventListener("pointerdown", popupDismiss, true);
+      document.addEventListener("keydown", popupDismiss, true);
+      window.addEventListener("resize", closePopup, true);
+    }
+    __name(openPopup, "openPopup");
+    function releasePopup() {
+      if (popupDismiss) {
+        document.removeEventListener("pointerdown", popupDismiss, true);
+        document.removeEventListener("keydown", popupDismiss, true);
+        popupDismiss = null;
+      }
+      window.removeEventListener("resize", closePopup, true);
+    }
+    __name(releasePopup, "releasePopup");
+    function removePopupNow() {
+      releasePopup();
+      if (popupEl) {
+        popupEl.remove();
+        popupEl = null;
+      }
+    }
+    __name(removePopupNow, "removePopupNow");
+    function closePopup() {
+      if (!popupEl) return;
+      if (prefersReducedMotion()) {
+        removePopupNow();
+        return;
+      }
+      const leaving = popupEl;
+      popupEl = null;
+      releasePopup();
+      leaving.classList.add("scal-popup--out");
+      window.setTimeout(() => leaving.remove(), 110);
+    }
+    __name(closePopup, "closePopup");
+    function parseDayKey(key) {
+      const [y, m, d] = key.split("-").map(Number);
+      return new Date(y, m, d);
+    }
+    __name(parseDayKey, "parseDayKey");
+    function applyKbdHighlight() {
+      for (const scope of [lastContainer, popupEl]) {
+        if (!scope || !scope.isConnected) continue;
+        for (const cell of scope.querySelectorAll(".scal-day")) {
+          const on = !!kbdKey && cell.getAttribute("data-key") === kbdKey;
+          cell.classList.toggle("scal-kbd", on);
+          if (on) revealCell(
+            /** @type {HTMLElement} */
+            cell
+          );
+        }
+      }
+    }
+    __name(applyKbdHighlight, "applyKbdHighlight");
+    function revealCell(cell) {
+      const strip = cell.closest(".scal-strip");
+      if (!(strip instanceof HTMLElement)) return;
+      const c = cell.getBoundingClientRect();
+      const s = strip.getBoundingClientRect();
+      if (c.left < s.left) strip.scrollLeft -= s.left - c.left;
+      else if (c.right > s.right) strip.scrollLeft += c.right - s.right;
+    }
+    __name(revealCell, "revealCell");
+    function kbdActive() {
+      return kbdKey !== null;
+    }
+    __name(kbdActive, "kbdActive");
+    function stopKbd() {
+      kbdKey = null;
+      for (const scope of [lastContainer, popupEl]) {
+        if (!scope || !scope.isConnected) continue;
+        for (const cell of scope.querySelectorAll(".scal-kbd")) cell.classList.remove("scal-kbd");
+      }
+    }
+    __name(stopKbd, "stopKbd");
+    function railCollapsed() {
+      try {
+        const mini = lastContainer && lastContainer.querySelector(".scal-mini");
+        return !!(mini instanceof HTMLElement && mini.offsetParent !== null);
+      } catch {
+        return false;
+      }
+    }
+    __name(railCollapsed, "railCollapsed");
+    function startKbd() {
+      const now = /* @__PURE__ */ new Date();
+      viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      kbdKey = dayKey(now);
+      if (railCollapsed()) {
+        const mini = lastContainer && lastContainer.querySelector(".scal-mini");
+        if (mini instanceof HTMLElement) {
+          openPopup(mini);
+          applyKbdHighlight();
+          return;
+        }
+      }
+      if (lastContainer && lastContainer.isConnected) renderCalendar(lastContainer);
+      applyKbdHighlight();
+    }
+    __name(startKbd, "startKbd");
+    function moveKbd(days) {
+      if (!kbdKey) return;
+      const from = parseDayKey(kbdKey);
+      const next = new Date(from.getFullYear(), from.getMonth(), from.getDate() + days);
+      kbdKey = dayKey(next);
+      if (stripIdleTimer) {
+        clearTimeout(stripIdleTimer);
+        stripIdleTimer = 0;
+      }
+      const drawn = lastContainer && lastContainer.querySelector(`.scal-day[data-key="${kbdKey}"]`) || popupEl && popupEl.querySelector(`.scal-day[data-key="${kbdKey}"]`);
+      if (!drawn) {
+        viewDate = new Date(next.getFullYear(), next.getMonth(), 1);
+        if (popupEl) renderCalendar(popupEl, { popup: true });
+        else if (lastContainer && lastContainer.isConnected) renderCalendar(lastContainer);
+      }
+      applyKbdHighlight();
+    }
+    __name(moveKbd, "moveKbd");
+    function commitKbd() {
+      if (!kbdKey) return;
+      const date = parseDayKey(kbdKey);
+      stopKbd();
+      closePopup();
+      void openJournal(date);
+    }
+    __name(commitKbd, "commitKbd");
+    function onKeyDown(ev) {
+      const combo = parseCombo(getConfig().shortcut || "");
+      if (combo && comboMatches(ev, combo)) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (kbdActive()) stopKbd();
+        else startKbd();
+        return;
+      }
+      if (!kbdActive()) return;
+      switch (ev.key) {
+        // Plain arrows only: sideways a day, vertically a week. Stepping off
+        // the drawn grid rolls into the neighbouring month (see moveKbd).
+        case "ArrowLeft":
+          moveKbd(-1);
+          break;
+        case "ArrowRight":
+          moveKbd(1);
+          break;
+        case "ArrowUp":
+          moveKbd(-7);
+          break;
+        case "ArrowDown":
+          moveKbd(7);
+          break;
+        case "Enter":
+          commitKbd();
+          break;
+        case "Escape":
+          stopKbd();
+          closePopup();
+          break;
+        default:
+          return;
+      }
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+    __name(onKeyDown, "onKeyDown");
     async function openJournal(date) {
       if (stripIdleTimer) {
         clearTimeout(stripIdleTimer);
@@ -3731,13 +4105,17 @@ ${report}
       requestAnimationFrame(syncSelectedDay);
     }
     __name(openJournal, "openJournal");
-    function renderCalendar(container) {
+    function renderCalendar(container, opts) {
+      const popup = !!(opts && opts.popup) || container === popupEl;
       const today = /* @__PURE__ */ new Date();
       if (!viewDate) {
         viewDate = new Date(today.getFullYear(), today.getMonth(), 1);
       }
-      lastContainer = container;
-      stopStripWatchers();
+      if (!popup) {
+        lastContainer = container;
+        stopStripWatchers();
+        closePopup();
+      }
       container.replaceChildren();
       const style = document.createElement("style");
       style.textContent = `
@@ -3755,6 +4133,9 @@ ${report}
         justify-content: space-between;
         margin-bottom: 10px;
         gap: 4px;
+        /* The nav buttons set this height when they are present; pinning it
+           keeps the collapsed copy \u2014 which has none \u2014 on the same baseline. */
+        min-height: 20px;
       }
 
       .scal-month-label {
@@ -3932,6 +4313,129 @@ ${report}
       @keyframes scal-roll-in-up { from { transform: translateY(130%); opacity: 0; } }
       @keyframes scal-roll-in-down { from { transform: translateY(-130%); opacity: 0; } }
 
+      /* \u2500\u2500 Collapsed rail: a date chip standing in for the calendar \u2500\u2500\u2500\u2500 */
+
+      /* Own rules rather than Thymer's collapsed-only/collapsed-hidden helpers,
+         so the swap does not depend on their semantics. The collapsed class
+         sits on the sidebar or on a wrapper, hence the descendant match. */
+      /* The collapsed copy is the same markup with one column instead of seven:
+         same classes, same paddings, same fonts, so the month name, the weekday
+         letter and the day number keep the exact vertical positions they had
+         when expanded. Nothing above or below it moves. */
+      .scal-mini {
+        display: none;
+        /* .scal-root's 10px bottom padding is what strip mode drops. The mini
+           has to drop it too: it balances the outline top-to-bottom, and it is
+           what makes this block exactly as tall as the strip it replaces
+           (measured 93px vs the strip's 83px before this). */
+        padding-bottom: 0;
+      }
+
+      /* Thymer switches the whole sidebar widget container off in the collapsed
+         rail (probed: display:none on .sidebar-widget-container at 62px wide).
+         This container \u2014 and only this one \u2014 is put back. */
+      .sidebar-collapsed .sidebar-widget-container:has(> .scal-mini) {
+        display: block !important;
+        /* The host pads this container 8px a side. In a 42px rail that leaves
+           the calendar 26px \u2014 measurably narrower than the 42px a collection
+           row gets \u2014 so the outline could never line up with a row highlight.
+           Only zeroed while collapsed; the expanded sidebar keeps its inset. */
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      .sidebar-collapsed .scal-root:not(.scal-mini) {
+        display: none;
+      }
+
+      .sidebar-collapsed .scal-mini {
+        display: block;
+        cursor: pointer;
+        /* Own stacking context, so the -1 pseudo-element below paints behind
+           this block's text but still above the sidebar background. */
+        position: relative;
+        z-index: 0;
+      }
+
+      /* The outline is drawn, not laid out: an absolutely positioned box adds
+         no height or width, so every row keeps the pixel it had when expanded.
+         The insets hug the content, skipping the root's top padding. */
+      .scal-mini::before {
+        content: '';
+        position: absolute;
+        z-index: -1;
+        /* Matches a sidebar row's highlight: full container width and Thymer's
+           own corner radius, rather than a measured pixel value. The 5px top
+           inset is .sidebar-item's own padding, so the box sits off the text
+           by the same amount a collection row does. */
+        top: 5px;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        border: 1px solid var(--border-default, rgba(127, 127, 127, 0.28));
+        border-radius: var(--radius-normal, 6px);
+        transition: background 0.1s;
+      }
+
+      /* Hover fills the whole block rather than one cell. */
+      .scal-mini:hover::before {
+        background: rgba(120, 120, 120, 0.18);
+      }
+
+      /* Today's own outline and tint would draw a second box inside the first.
+         border-COLOR, not border-width: the 1px has to stay for alignment. */
+      .scal-mini .scal-day.today {
+        border-color: transparent;
+        background: none;
+      }
+
+      .scal-mini .scal-day:hover {
+        background: none;
+      }
+
+      .scal-grid--one {
+        grid-template-columns: 1fr;
+      }
+
+      /* Keyboard picker: a focus ring that costs no layout. */
+      .scal-day.scal-kbd {
+        outline: 2px solid var(--logo-color, var(--color-text-primary));
+        outline-offset: -1px;
+      }
+
+      /* Eases out of the rail rather than appearing. Short enough to feel
+         like part of the click. */
+      @keyframes scal-popup-in {
+        from { opacity: 0; transform: translateX(-6px) scale(0.985); }
+      }
+
+      @keyframes scal-popup-out {
+        to { opacity: 0; transform: translateX(-4px) scale(0.985); }
+      }
+
+      .scal-popup {
+        transform-origin: left center;
+        animation: scal-popup-in 130ms cubic-bezier(0.2, 0.7, 0.3, 1);
+        position: fixed;
+        z-index: 9999;
+        width: 240px;
+        box-sizing: border-box;
+        padding: 4px 10px 10px;
+        border: 1px solid var(--border-default, rgba(127, 127, 127, 0.22));
+        border-radius: 8px;
+        background: var(--side-bg-color, var(--color-background-secondary, #1e1e1e));
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      }
+
+      .scal-popup.scal-popup--out {
+        animation: scal-popup-out 100ms ease-in forwards;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .scal-popup,
+        .scal-popup.scal-popup--out { animation: none; }
+      }
+
       /* In strip mode the month label is also the "back to today" control. */
       .scal-month-label--jump {
         cursor: pointer;
@@ -3950,6 +4454,9 @@ ${report}
       root.setAttribute("data-plg-st-cal", "1");
       root.style.containerType = "inline-size";
       container.appendChild(root);
+      if (!popup) {
+        container.appendChild(buildMini());
+      }
       const vd = viewDate;
       const year = vd.getFullYear();
       const month = vd.getMonth();
@@ -4007,7 +4514,7 @@ ${report}
       root.appendChild(header);
       const todayObj = /* @__PURE__ */ new Date();
       const todayKey = `${todayObj.getFullYear()}-${todayObj.getMonth()}-${todayObj.getDate()}`;
-      const mode = getConfig().style === "strip" ? "strip" : "month";
+      const mode = popup ? "month" : getConfig().style === "strip" ? "strip" : "month";
       root.classList.toggle("scal-strip-mode", mode === "strip");
       const grid = document.createElement("div");
       grid.className = "scal-grid";
@@ -4023,8 +4530,10 @@ ${report}
       monthLabel.title = "Jump to today";
       monthLabel.addEventListener("click", () => {
         const now = /* @__PURE__ */ new Date();
+        if (kbdKey) kbdKey = dayKey(now);
         if (now.getFullYear() === year && now.getMonth() === month) {
           if (goToToday) goToToday(true);
+          if (kbdKey) applyKbdHighlight();
           return;
         }
         viewDate = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -4043,11 +4552,66 @@ ${report}
         for (const cell of cells) grid.appendChild(cell);
       }
       root.appendChild(grid);
+      if (popup) {
+        syncSelectedDayIn(container);
+        if (kbdKey) applyKbdHighlight();
+        return;
+      }
       animateStyleSwap(grid);
       syncSelectedDay();
+      if (kbdKey) applyKbdHighlight();
       lastRenderedStyle = mode;
     }
     __name(renderCalendar, "renderCalendar");
+    function buildMini() {
+      const now = /* @__PURE__ */ new Date();
+      const mini = document.createElement("div");
+      mini.className = "scal-root scal-mini";
+      mini.style.containerType = "inline-size";
+      mini.setAttribute("role", "button");
+      mini.tabIndex = 0;
+      mini.title = now.toLocaleDateString(void 0, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric"
+      });
+      const header = document.createElement("div");
+      header.className = "scal-header";
+      const label = document.createElement("span");
+      label.className = "scal-month-label";
+      const text = document.createElement("span");
+      text.className = "scal-month-text";
+      text.textContent = now.toLocaleDateString(void 0, { month: "short" });
+      label.appendChild(text);
+      header.appendChild(label);
+      const grid = document.createElement("div");
+      grid.className = "scal-grid scal-grid--one";
+      const dow = document.createElement("div");
+      dow.className = "scal-dow";
+      dow.textContent = DOW_LABELS[(now.getDay() + 6) % 7];
+      const day = document.createElement("div");
+      day.className = "scal-day today";
+      day.textContent = String(now.getDate());
+      grid.appendChild(dow);
+      grid.appendChild(day);
+      mini.appendChild(header);
+      mini.appendChild(grid);
+      const open = /* @__PURE__ */ __name((ev) => {
+        ev.stopPropagation();
+        if (popupEl) {
+          closePopup();
+          return;
+        }
+        openPopup(mini);
+      }, "open");
+      mini.addEventListener("click", open);
+      mini.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") open(ev);
+      });
+      return mini;
+    }
+    __name(buildMini, "buildMini");
     function animateStyleSwap(grid) {
       const from = swapFromHeight;
       swapFromHeight = null;
@@ -4409,6 +4973,10 @@ ${report}
           }
           return;
         }
+        if (!kbdListener) {
+          kbdListener = onKeyDown;
+          window.addEventListener("keydown", kbdListener, true);
+        }
         for (const name of ["panel.navigated", "panel.focused", "panel.closed"]) {
           try {
             const id = plugin.events.on(name, () => requestAnimationFrame(syncSelectedDay));
@@ -4426,6 +4994,12 @@ ${report}
       },
       unmount() {
         stopStripWatchers();
+        stopKbd();
+        removePopupNow();
+        if (kbdListener) {
+          window.removeEventListener("keydown", kbdListener, true);
+          kbdListener = null;
+        }
         while (panelHandlerIds.length) {
           const id = panelHandlerIds.pop();
           try {
@@ -4526,6 +5100,7 @@ ${report}
     hideNewPage: false,
     hideTasks: false,
     hideToday: false,
+    hideDividers: false,
     hideCollectionOptionMenus: false,
     hideWorkspaceSwitcher: false,
     hideCollapsedChevron: false,
@@ -4546,6 +5121,8 @@ ${report}
     calendarStyleMobile: "strip",
     // Strip only: drift back to today after the user stops scrolling it.
     calendarReturnToToday: true,
+    // Combo that opens the keyboard date picker ('' = unbound).
+    calendarShortcut: "",
     // Layout toggles
     fixPanelAnimation: true,
     // Tuned layout — spacing moved from css-global into plugin panel
@@ -4575,6 +5152,7 @@ ${report}
       "hideNewPage",
       "hideTasks",
       "hideToday",
+      "hideDividers",
       "hideCollectionOptionMenus",
       "hideWorkspaceSwitcher",
       "hideCollapsedChevron",
@@ -4591,7 +5169,8 @@ ${report}
     [
       "renameCollections",
       "renameTags",
-      "renameTrash"
+      "renameTrash",
+      "calendarShortcut"
     ]
   );
   var CALENDAR_STYLES = (
@@ -4663,6 +5242,10 @@ ${report}
     hideToday: {
       label: "Today",
       selectors: [`${SIDEBAR_SCOPE} ${TODAY_ROW_SELECTOR}`]
+    },
+    hideDividers: {
+      label: "Dividers",
+      selectors: [`${SIDEBAR_SCOPE} .sidebar-item-divider${NOT_SEPARATOR}`]
     },
     // Mobile-first sidebar-top rows (probed on iPhone 2026-07-13): Quick Add is
     // mobile-only chrome; "New page in…" (id-new) can appear on desktop too.
@@ -4827,6 +5410,13 @@ ${report}
     if (options.hideToday) {
       lines.push(
         `${scope} ${SIDEBAR_SCOPE} ${TODAY_ROW_SELECTOR} {`,
+        `display: none !important;`,
+        `}`
+      );
+    }
+    if (options.hideDividers) {
+      lines.push(
+        `${scope} ${SIDEBAR_SCOPE} .sidebar-item-divider${NOT_SEPARATOR} {`,
         `display: none !important;`,
         `}`
       );
@@ -5432,7 +6022,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.7.0";
+  var PLUGIN_VERSION = "1.11.3";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
@@ -5506,6 +6096,7 @@ ${report}
     ".sidebar-item-heading",
     ".sidebar-item-collsheading",
     ".scal-root",
+    ".scal-mini",
     ".sidebar-widget",
     "a",
     "button",
@@ -5587,7 +6178,8 @@ ${report}
       this,
       () => ({
         style: resolveCalendarStyle(this._options),
-        returnToToday: !!this._options.calendarReturnToToday
+        returnToToday: !!this._options.calendarReturnToToday,
+        shortcut: String(this._options.calendarShortcut || "")
       }),
       // Clicking the weekday letters switches style for THIS device's form
       // factor, and saves it — the same key the settings panel edits.
@@ -6384,6 +6976,18 @@ ${report}
         }),
         optionRow({
           type: "checkbox",
+          name: "hideDividers",
+          label: "Hide dividers",
+          desc: "Hides Thymer's divider lines between sidebar sections, and the gap they leave behind.",
+          checked: !!this._options.hideDividers,
+          onChange: /* @__PURE__ */ __name((e) => this._setToggle(
+            "hideDividers",
+            /** @type {HTMLInputElement} */
+            e.target.checked
+          ), "onChange")
+        }),
+        optionRow({
+          type: "checkbox",
           name: "hideCollectionsHeader",
           label: "Hide Collections heading",
           desc: "Hides only the \u201CCollections\u201D header row. Calendar, Inbox, Journals, etc. stay visible and reappear after closing Tags.",
@@ -6507,7 +7111,7 @@ ${report}
       );
     }
     /**
-     * @param {'renameCollections'|'renameTags'|'renameTrash'} key
+     * @param {'renameCollections'|'renameTags'|'renameTrash'|'calendarShortcut'} key
      * @param {string} value
      */
     _setText(key, value) {
@@ -6570,6 +7174,13 @@ ${report}
           { class: "tps-opt-group__value" },
           this._calendarStyleRow("Desktop style", "calendarStyleDesktop"),
           this._calendarStyleRow("Mobile style", "calendarStyleMobile"),
+          keyRow({
+            label: "Keyboard picker shortcut",
+            desc: "Opens a date picker on today. \u2190/\u2192 move a day, \u2191/\u2193 a week, past the edge of a month into the next. Enter opens that day's Journal, Escape closes.",
+            combo: String(this._options.calendarShortcut || ""),
+            onChange: /* @__PURE__ */ __name((combo) => this._setText("calendarShortcut", combo), "onChange"),
+            onClear: /* @__PURE__ */ __name(() => this._setText("calendarShortcut", ""), "onClear")
+          }),
           optionRow({
             type: "checkbox",
             name: "calendarReturnToToday",

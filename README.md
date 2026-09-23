@@ -35,7 +35,7 @@ Enjoy! 🙏
 
 ### Show/hide items
 
-Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Tasks, Today, Collections, collection option menus, Tags, Trash. Hiding Collections takes the records of any expanded collection with it.
+Listed top → bottom as in the sidebar: collapse arrow, Search, Jump, Tasks, Today, dividers, Collections, collection option menus, Tags, Trash. Hiding Collections takes the records of any expanded collection with it.
 
 ### Behavior
 
@@ -53,11 +53,19 @@ Two styles, chosen separately for **desktop** and **mobile**, because a 7×6 gri
 Same fonts, columns and spacing in both, so switching only changes how many weeks you can see.
 
 - **Click the weekday letters** (MO TU WE…) to switch styles straight from the sidebar — it saves the choice for whichever device you are on.
-- **Click the month name** to jump back to today.
+- **Click the month name** to jump back to today, in either style and in the pop-out.
 - The strip scrolls by wheel, trackpad, touch or dragging, and lands on a whole day once you stop. Today rests in the second slot, so yesterday stays in view.
 - Scrolling past the end of a month stops there; one more deliberate nudge rolls into the next month, and the month name rolls over with it.
 - Today is outlined; the day your Journal is currently showing stays filled.
 - **Strip returns to today** (on by default) slides back to today after ten seconds of not scrolling — only while the current month is showing, and never after you have picked a day.
+
+#### Collapsed sidebar
+
+The calendar becomes a compact date block — month, weekday, day — taking exactly the room it had when expanded, so collapsing moves the sidebar sideways and not up. Click it and the full month eases out beside the rail, without expanding the sidebar.
+
+#### Keyboard picker
+
+Bind **Keyboard picker shortcut** and the combo drops a highlight on today: ←/→ move a day, ↑/↓ a week, and stepping past the edge of a month carries on into the next one. Enter opens that day's Journal just as a click would; Escape closes. Collapsed, it opens the pop-out and works the same way.
 
 ### Layout
 
