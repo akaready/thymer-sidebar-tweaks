@@ -61,7 +61,9 @@ Same fonts, columns and spacing in both, so switching only changes how many week
 
 #### Collapsed sidebar
 
-The calendar becomes a compact date block — month, weekday, day — taking exactly the room it had when expanded, so collapsing moves the sidebar sideways and not up. Click it and the full month eases out beside the rail, without expanding the sidebar.
+The calendar becomes a compact date block — month, weekday, day — taking exactly the room it had when expanded, so collapsing moves the sidebar sideways and not up. Click it and the full month eases out beside the rail, without expanding the sidebar; double-click to jump straight to today's Journal.
+
+For the rest of the sidebar to hold still through a collapse, turn on **Collection row height** (Layout) — collapsed rows lose the hover buttons that set their height and shrink by ~8px otherwise.
 
 #### Keyboard picker
 

@@ -4574,12 +4574,13 @@ ${report}
       mini.style.containerType = "inline-size";
       mini.setAttribute("role", "button");
       mini.tabIndex = 0;
-      mini.title = now.toLocaleDateString(void 0, {
+      mini.title = `${now.toLocaleDateString(void 0, {
         weekday: "long",
         month: "long",
         day: "numeric",
         year: "numeric"
-      });
+      })}
+Click for the calendar \xB7 double-click to open today`;
       const header = document.createElement("div");
       header.className = "scal-header";
       const label = document.createElement("span");
@@ -4612,6 +4613,12 @@ ${report}
       mini.addEventListener("click", open);
       mini.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter" || ev.key === " ") open(ev);
+      });
+      mini.addEventListener("dblclick", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        removePopupNow();
+        void openJournal(/* @__PURE__ */ new Date());
       });
       return mini;
     }
@@ -6037,7 +6044,7 @@ ${report}
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.12.1";
+  var PLUGIN_VERSION = "1.13.0";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
