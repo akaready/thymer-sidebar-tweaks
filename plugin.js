@@ -4850,23 +4850,6 @@ Click for the calendar \xB7 double-click to open today`;
         wheelAccum = 0;
         stepDay(dir);
       }, { passive: false });
-      let touchX = 0;
-      let touchRolled = false;
-      strip.addEventListener("touchstart", (ev) => {
-        if (ev.touches.length !== 1) return;
-        touchX = ev.touches[0].clientX;
-        touchRolled = false;
-        edgePush = 0;
-        edgeDir = 0;
-      }, { passive: true });
-      strip.addEventListener("touchmove", (ev) => {
-        if (touchRolled || ev.touches.length !== 1) return;
-        const x = ev.touches[0].clientX;
-        const dx = touchX - x;
-        touchX = x;
-        if (!dx) return;
-        if (pushEdge(dx > 0 ? 1 : -1, dx)) touchRolled = true;
-      }, { passive: true });
       let drag = null;
       let swallowClick = false;
       strip.addEventListener("click", (ev) => {
@@ -4919,8 +4902,15 @@ Click for the calendar \xB7 double-click to open today`;
       strip.addEventListener("pointerup", endDrag);
       strip.addEventListener("pointercancel", endDrag);
       if (typeof ResizeObserver === "function") {
+        let lastStripWidth = 0;
         stripResizeObserver = new ResizeObserver(() => {
           if (drag || !strip.clientWidth) return;
+          const w = strip.clientWidth;
+          if (Math.abs(w - lastStripWidth) < 0.5) {
+            syncFades();
+            return;
+          }
+          lastStripWidth = w;
           const index = restingIndex >= 0 ? restingIndex : shownIndex;
           const left = Math.min(Math.max(index, 0), maxIndex) * dayWidth();
           if (Math.abs(strip.scrollLeft - left) > 1) strip.scrollLeft = left;
@@ -6044,7 +6034,7 @@ Click for the calendar \xB7 double-click to open today`;
   // plugin.js
   var ROOT_CLASS = "plg-sidebar-tweaks";
   var PANEL_TYPE = "sidebar-tweaks-settings";
-  var PLUGIN_VERSION = "1.13.0";
+  var PLUGIN_VERSION = "1.13.1";
   var RENAME_INPUT_CSS = `
 .${ROOT_CLASS}-panel .tps-opt--text {
 	display: flex;
